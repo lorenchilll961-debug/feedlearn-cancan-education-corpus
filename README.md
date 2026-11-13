@@ -1,10 +1,10 @@
-# Feedlearb · 灿灿教育智能体语料库
+# Feedlearn · 灿灿教育智能体语料库
 
 > A curated implementation corpus for an AI-assisted learning platform built around retrieval, knowledge organization and personalized learning workflows.
 
 ## Purpose
 
-This repository preserves the project’s iterative design and implementation notes for **Feedlearb / 灿灿 AI 4.0**. It is useful as a Chinese-language reference corpus for education-agent prototyping, product decomposition, and RAG application design.
+This repository preserves the project’s iterative design and implementation notes for **Feedlearn / 灿灿 AI 4.0**. It is useful as a Chinese-language reference corpus for education-agent prototyping, product decomposition, and RAG application design.
 
 The material documents a proposed system that combines document ingestion, semantic retrieval, knowledge-graph views, learning-path generation, question generation, summaries and a conversational interface.
 
@@ -43,4 +43,4 @@ Secret-like demo values have been replaced with environment-variable examples. I
 
 ## Suggested citation
 
-`Feedlearb · 灿灿教育智能体语料库, implementation corpus, 2026.`
+`Feedlearn · 灿灿教育智能体语料库, implementation corpus, 2026.`
