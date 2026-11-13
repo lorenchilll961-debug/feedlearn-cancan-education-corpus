@@ -1,0 +1,294 @@
+cat > modules/knowledge_graph_builder.py << 'EOF'
+"""
+============================================
+知识图谱构建模块
+从文档中提取实体和关系，构建知识图谱
+============================================
+"""
+
+import re
+import json
+from typing import List, Dict, Set, Tuple
+import logging
+import jieba
+import jieba.posseg as pseg
+
+logger = logging.getLogger(__name__)
+
+
+class KnowledgeGraphBuilder:
+    """知识图谱构建器"""
+    
+    def __init__(self):
+        """初始化"""
+        self.nodes = []
+        self.links = []
+        self.entity_types = {
+            'n': 'concept',      # 名词 - 概念
+            'v': 'action',       # 动词 - 行为
+            'nr': 'person',      # 人名
+            'ns': 'location',    # 地名
+            'nt': 'organization' # 机构名
+        }
+    
+    def build_graph(self, text: str, max_nodes: int = 50) -> Dict:
+        """
+        构建知识图谱
+        
+        Args:
+            text: 输入文本
+            max_nodes: 最大节点数
+            
+        Returns:
+            图谱数据 {nodes: [], links: []}
+        """
+        try:
+            logger.info("开始构建知识图谱...")
+            
+            # 1. 提取实体
+            entities = self._extract_entities(text)
+            
+            # 2. 提取关系
+            relations = self._extract_relations(text, entities)
+            
+            # 3. 构建节点
+            self.nodes = self._build_nodes(entities, max_nodes)
+            
+            # 4. 构建连接
+            self.links = self._build_links(relations, self.nodes)
+            
+            # 5. 计算重要度
+            self._calculate_importance()
+            
+            graph_data = {
+                'nodes': self.nodes,
+                'links': self.links,
+                'metadata': {
+                    'total_nodes': len(self.nodes),
+                    'total_links': len(self.links),
+                    'timestamp': self._get_timestamp()
+                }
+            }
+            
+            # 保存图谱
+            self._save_graph(graph_data)
+            
+            logger.info(f"知识图谱构建完成: {len(self.nodes)} 个节点, {len(self.links)} 条边")
+            return graph_data
+            
+        except Exception as e:
+            logger.error(f"构建知识图谱失败: {e}")
+            return {'nodes': [], 'links': []}
+    
+    def _extract_entities(self, text: str) -> List[Dict]:
+        """提取实体"""
+        entities = []
+        seen = set()
+        
+        # 使用jieba分词和词性标注
+        words = pseg.cut(text)
+        
+        for word, flag in words:
+            # 过滤条件
+            if len(word) < 2 or word in seen:
+                continue
+            
+            # 只保留有意义的词性
+            if flag.startswith('n') or flag.startswith('v') or flag in ['nr', 'ns', 'nt']:
+                category = self.entity_types.get(flag[:2], 'keyword')
+                
+                entities.append({
+                    'name': word,
+                    'type': flag,
+                    'category': category,
+                    'frequency': text.count(word)
+                })
+                seen.add(word)
+        
+        # 按频率排序
+        entities.sort(key=lambda x: x['frequency'], reverse=True)
+        
+        return entities
+    
+    def _extract_relations(self, text: str, entities: List[Dict]) -> List[Tuple[str, str, str]]:
+        """
+        提取实体间关系
+        
+        Returns:
+            关系三元组列表 [(实体1, 关系, 实体2), ...]
+        """
+        relations = []
+        
+        # 简化的关系提取：在同一句子中的实体视为有关系
+        sentences = [s.strip() for s in re.split(r'[。！？;；]', text) if s.strip()]
+        
+        entity_names = set(e['name'] for e in entities[:30])  # 只考虑前30个高频实体
+        
+        for sentence in sentences:
+            # 找出句子中的实体
+            entities_in_sentence = [e for e in entity_names if e in sentence]
+            
+            if len(entities_in_sentence) >= 2:
+                # 提取关系词（动词）
+                relation = self._find_relation_word(sentence)
+                
+                # 生成实体对
+                for i in range(len(entities_in_sentence) - 1):
+                    for j in range(i + 1, len(entities_in_sentence)):
+                        relations.append((
+                            entities_in_sentence[i],
+                            relation,
+                            entities_in_sentence[j]
+                        ))
+        
+        return relations
+    
+    def _find_relation_word(self, sentence: str) -> str:
+        """从句子中查找关系词（动词）"""
+        words = pseg.cut(sentence)
+        
+        for word, flag in words:
+            if flag.startswith('v') and len(word) >= 2:
+                return word
+        
+        return "相关"  # 默认关系
+    
+    def _build_nodes(self, entities: List[Dict], max_nodes: int) -> List[Dict]:
+        """构建节点"""
+        nodes = []
+        
+        for i, entity in enumerate(entities[:max_nodes]):
+            node = {
+                'id': f"node_{i}",
+                'name': entity['name'],
+                'category': entity['category'],
+                'frequency': entity['frequency'],
+                'importance': 0,  # 稍后计算
+                'description': f"关键概念：{entity['name']}"
+            }
+            nodes.append(node)
+        
+        return nodes
+    
+    def _build_links(self, relations: List[Tuple[str, str, str]], 
+                    nodes: List[Dict]) -> List[Dict]:
+        """构建连接"""
+        links = []
+        node_names = {node['name']: node['id'] for node in nodes}
+        
+        # 统计关系频率
+        relation_count = {}
+        
+        for source, relation, target in relations:
+            if source in node_names and target in node_names:
+                key = (node_names[source], node_names[target])
+                relation_count[key] = relation_count.get(key, 0) + 1
+        
+        # 生成连接
+        for (source_id, target_id), weight in relation_count.items():
+            links.append({
+                'source': source_id,
+                'target': target_id,
+                'weight': weight,
+                'relation': '相关'
+            })
+        
+        return links
+    
+    def _calculate_importance(self):
+        """计算节点重要度（基于度中心性）"""
+        # 统计每个节点的连接数
+        degree = {node['id']: 0 for node in self.nodes}
+        
+        for link in self.links:
+            degree[link['source']] += 1
+            degree[link['target']] += 1
+        
+        # 归一化重要度 (0-10)
+        max_degree = max(degree.values()) if degree.values() else 1
+        
+        for node in self.nodes:
+            node['importance'] = int((degree[node['id']] / max_degree) * 10)
+    
+    def _get_timestamp(self) -> str:
+        """获取时间戳"""
+        from datetime import datetime
+        return datetime.now().isoformat()
+    
+    def _save_graph(self, graph_data: Dict):
+        """保存图谱到文件"""
+        try:
+            import os
+            os.makedirs('data', exist_ok=True)
+            
+            with open('data/knowledge_graph.json', 'w', encoding='utf-8') as f:
+                json.dump(graph_data, f, ensure_ascii=False, indent=2)
+            
+            logger.info("知识图谱已保存")
+        except Exception as e:
+            logger.error(f"保存知识图谱失败: {e}")
+
+
+class GraphAnalyzer:
+    """图谱分析器"""
+    
+    @staticmethod
+    def find_path(graph: Dict, start_node: str, end_node: str) -> List[str]:
+        """查找两节点间的路径（BFS）"""
+        # 构建邻接表
+        adj = {}
+        for link in graph['links']:
+            source = link['source']
+            target = link['target']
+            
+            if source not in adj:
+                adj[source] = []
+            if target not in adj:
+                adj[target] = []
+            
+            adj[source].append(target)
+            adj[target].append(source)
+        
+        # BFS搜索
+        from collections import deque
+        
+        queue = deque([(start_node, [start_node])])
+        visited = {start_node}
+        
+        while queue:
+            node, path = queue.popleft()
+            
+            if node == end_node:
+                return path
+            
+            for neighbor in adj.get(node, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append((neighbor, path + [neighbor]))
+        
+        return []  # 未找到路径
+    
+    @staticmethod
+    def get_central_nodes(graph: Dict, top_k: int = 5) -> List[Dict]:
+        """获取中心节点"""
+        nodes = sorted(
+            graph['nodes'],
+            key=lambda x: x.get('importance', 0),
+            reverse=True
+        )
+        return nodes[:top_k]
+    
+    @staticmethod
+    def get_clusters(graph: Dict) -> List[List[str]]:
+        """获取节点聚类（简化版）"""
+        # 基于类别进行简单聚类
+        clusters = {}
+        
+        for node in graph['nodes']:
+            category = node.get('category', 'default')
+            if category not in clusters:
+                clusters[category] = []
+            clusters[category].append(node['id'])
+        
+        return list(clusters.values())
+EOF

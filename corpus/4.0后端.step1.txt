@@ -1,0 +1,651 @@
+cat > app.py << 'ENDOFFILE'
+# app.py - 灿灿AI 4.0 教育知识库系统
+from flask import Flask, render_template, request, jsonify, session
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+import ollama
+import PyPDF2
+import docx
+import re
+from datetime import datetime
+import json
+import os
+from collections import Counter
+import uuid
+
+app = Flask(__name__)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'development-only-change-me')
+
+# 初始化模型
+print("🚀 正在加载灿灿AI 4.0...")
+embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+
+# 全局存储
+knowledge_base = []
+document_index = None
+file_metadata = {}  # 存储每个文件的元数据
+learning_history = []  # 学习历史
+user_preferences = {}  # 用户偏好
+
+# 团队信息
+TEAM_INFO = {
+    "name": "灿灿AI团队",
+    "vision": "用AI技术赋能教育创新，让学习更智能、更个性化",
+    "intro": "我们是一支充满激情的教育科技团队，专注于人工智能在教育领域的创新应用",
+    "description": """基于大语言模型和RAG技术，我们开发了灿灿AI智能教育系统。
+系统支持多文件批量处理、智能知识图谱构建、个性化学习路径规划等创新功能。
+我们致力于通过AI技术，为教育工作者和学习者提供更高效、更智能的学习体验。""",
+    "leader": {
+        "name": "项目负责人",
+        "role": "团队负责人 / 首席架构师",
+        "phone": "138-0000-0000"
+    },
+    "email": "cancan-ai@example.com",
+    "members": ["技术开发", "产品设计", "教育专家", "数据分析", "UI/UX设计"]
+}
+
+# 里程碑
+MILESTONES = [
+    {"date": "2024年9月", "event": "项目启动", "desc": "团队组建，确定技术路线"},
+    {"date": "2024年10月", "event": "技术选型", "desc": "选择Ollama + RAG架构"},
+    {"date": "2024年11月", "event": "原型开发", "desc": "完成基础功能开发"},
+    {"date": "2024年12月", "event": "功能迭代", "desc": "添加多语言支持"},
+    {"date": "2025年1月", "event": "3.0版本发布", "desc": "基础版本上线"},
+    {"date": "2025年2月", "event": "4.0全面升级", "desc": "多文件上传+创新功能"},
+    {"date": "2025年3月", "event": "参赛提交", "desc": "参加人工智能赋创大赛"}
+]
+
+# ========== 文档处理 ==========
+def extract_text_from_file(file):
+    """提取文件文本"""
+    filename = file.filename.lower()
+    
+    if filename.endswith('.pdf'):
+        pdf_reader = PyPDF2.PdfReader(file)
+        return '\n'.join([page.extract_text() for page in pdf_reader.pages])
+    
+    elif filename.endswith('.docx'):
+        doc = docx.Document(file)
+        return '\n'.join([para.text for para in doc.paragraphs])
+    
+    elif filename.endswith('.txt'):
+        return file.read().decode('utf-8')
+    
+    return ""
+
+def chunk_text(text, chunk_size=300, overlap=50):
+    """分块文本"""
+    sentences = re.split(r'[。！？\n]', text)
+    chunks = []
+    current_chunk = ""
+    
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) < chunk_size:
+            current_chunk += sentence + "。"
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = sentence + "。"
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return [chunk for chunk in chunks if len(chunk) > 20]
+
+def analyze_difficulty(text):
+    """分析难度"""
+    avg_length = sum(len(s) for s in text.split('。')) / max(len(text.split('。')), 1)
+    if avg_length > 50: return "高级"
+    elif avg_length > 30: return "中级"
+    return "基础"
+
+def extract_keywords_from_text(text, top_n=10):
+    """提取关键词"""
+    words = re.findall(r'[\u4e00-\u9fa5]{2,}', text)
+    counter = Counter(words)
+    return [{"word": word, "freq": freq} for word, freq in counter.most_common(top_n)]
+
+# ========== 路由 ==========
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/team')
+def team():
+    return render_template('team.html', team=TEAM_INFO)
+
+@app.route('/contact')
+def contact():
+    return render_template('contact.html', team=TEAM_INFO)
+
+@app.route('/milestones')
+def milestones():
+    return render_template('milestones.html', milestones=MILESTONES)
+
+@app.route('/knowledge_graph')
+def knowledge_graph():
+    return render_template('knowledge_graph.html')
+
+@app.route('/learning_center')
+def learning_center():
+    return render_template('learning_center.html')
+
+@app.route('/resources')
+def resources():
+    return render_template('resources.html')
+
+@app.route('/help')
+def help_page():
+    return render_template('help.html')
+
+# ========== 多文件上传 ==========
+@app.route('/upload_multiple', methods=['POST'])
+def upload_multiple():
+    """批量上传文件"""
+    global knowledge_base, document_index, file_metadata
+    
+    try:
+        files = request.files.getlist('files')
+        
+        if not files:
+            return jsonify({"success": False, "message": "未选择文件"})
+        
+        uploaded_files = []
+        total_chunks = 0
+        
+        for file in files:
+            if file.filename == '':
+                continue
+            
+            file_id = str(uuid.uuid4())[:8]
+            text = extract_text_from_file(file)
+            
+            if not text or len(text) < 50:
+                continue
+            
+            chunks = chunk_text(text)
+            keywords = extract_keywords_from_text(text, 5)
+            difficulty = analyze_difficulty(text)
+            
+            # 保存元数据
+            file_metadata[file_id] = {
+                "filename": file.filename,
+                "upload_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "chunks": len(chunks),
+                "keywords": keywords,
+                "difficulty": difficulty,
+                "char_count": len(text)
+            }
+            
+            # 添加到知识库
+            for chunk in chunks:
+                knowledge_base.append({
+                    "text": chunk,
+                    "file_id": file_id,
+                    "filename": file.filename
+                })
+            
+            uploaded_files.append({
+                "filename": file.filename,
+                "chunks": len(chunks),
+                "keywords": [kw["word"] for kw in keywords[:3]],
+                "difficulty": difficulty
+            })
+            
+            total_chunks += len(chunks)
+        
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "文件内容无效"})
+        
+        # 构建FAISS索引
+        texts = [item["text"] for item in knowledge_base]
+        embeddings = embedding_model.encode(texts)
+        
+        dimension = embeddings.shape[1]
+        document_index = faiss.IndexFlatL2(dimension)
+        document_index.add(embeddings.astype('float32'))
+        
+        return jsonify({
+            "success": True,
+            "message": f"成功上传 {len(uploaded_files)} 个文件",
+            "files": uploaded_files,
+            "total_chunks": total_chunks
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": f"上传失败: {str(e)}"})
+
+# ========== AI问答 ==========
+@app.route('/ask', methods=['POST'])
+def ask():
+    """智能问答"""
+    try:
+        data = request.json
+        question = data.get('question', '')
+        style = data.get('style', 'simple')
+        language = data.get('language', 'zh')
+        
+        if not knowledge_base or document_index is None:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        # 检索相关文档
+        query_embedding = embedding_model.encode([question])
+        D, I = document_index.search(query_embedding.astype('float32'), k=3)
+        
+        context_parts = []
+        for idx in I[0]:
+            if idx < len(knowledge_base):
+                item = knowledge_base[idx]
+                context_parts.append(f"[{item['filename']}]\n{item['text']}")
+        
+        context = "\n\n".join(context_parts)
+        
+        # 风格提示词
+        style_prompts = {
+            'simple': '请用通俗易懂的语言',
+            'professional': '请用专业学术的语言',
+            'inspiring': '请用启发式的方式',
+            'concise': '请简明扼要地',
+            'detailed': '请详细深入地'
+        }
+        
+        # 语言提示词
+        language_names = {
+            'zh': '中文', 'en': 'English', 'vi': 'Tiếng Việt',
+            'th': 'ภาษาไทย', 'id': 'Bahasa Indonesia',
+            'ms': 'Bahasa Melayu', 'fil': 'Filipino',
+            'my': 'မြန်မာဘာသာ', 'lo': 'ພາສາລາວ', 'km': 'ភាសាខ្មែរ'
+        }
+        
+        prompt = f"""你是灿灿AI，一个智能教育助手。
+
+参考资料：
+{context}
+
+用户问题：{question}
+
+要求：
+1. {style_prompts.get(style, '')}回答
+2. 用{language_names.get(language, '中文')}回答
+3. 基于参考资料回答，如果资料不足请说明
+4. 回答要准确、有条理
+
+请回答："""
+        
+        response = ollama.generate(model='qwen2.5:7b', prompt=prompt)
+        answer = response['response']
+        
+        # 记录学习历史
+        learning_history.append({
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "question": question,
+            "answer": answer[:100] + "..."
+        })
+        
+        return jsonify({
+            "success": True,
+            "answer": answer,
+            "sources": [item['filename'] for item in [knowledge_base[i] for i in I[0] if i < len(knowledge_base)]]
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": f"回答失败: {str(e)}"})
+
+# ========== 创新功能 ==========
+
+# 1. 智能知识图谱
+@app.route('/build_knowledge_graph', methods=['POST'])
+def build_knowledge_graph():
+    """构建知识图谱"""
+    try:
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        # 提取所有关键词
+        all_keywords = []
+        for file_id, meta in file_metadata.items():
+            all_keywords.extend([kw["word"] for kw in meta["keywords"]])
+        
+        keyword_counter = Counter(all_keywords)
+        top_keywords = keyword_counter.most_common(20)
+        
+        # 构建节点和边
+        nodes = [{"id": kw, "label": kw, "value": freq} for kw, freq in top_keywords]
+        
+        # 简单的关联关系（共现）
+        edges = []
+        for i, (kw1, _) in enumerate(top_keywords[:10]):
+            for kw2, _ in top_keywords[i+1:i+3]:
+                edges.append({"from": kw1, "to": kw2})
+        
+        return jsonify({
+            "success": True,
+            "graph": {
+                "nodes": nodes,
+                "edges": edges
+            }
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+# 2. 学习分析中心
+@app.route('/learning_analytics', methods=['GET'])
+def learning_analytics():
+    """学习行为分析"""
+    try:
+        total_files = len(file_metadata)
+        total_chunks = len(knowledge_base)
+        total_questions = len(learning_history)
+        
+        # 学习时长估算（每个问答约2分钟）
+        study_time = total_questions * 2
+        
+        # 最活跃的主题
+        all_keywords = []
+        for meta in file_metadata.values():
+            all_keywords.extend([kw["word"] for kw in meta["keywords"]])
+        
+        top_topics = Counter(all_keywords).most_common(5)
+        
+        return jsonify({
+            "success": True,
+            "analytics": {
+                "total_files": total_files,
+                "total_chunks": total_chunks,
+                "total_questions": total_questions,
+                "study_time_minutes": study_time,
+                "top_topics": [{"topic": t, "count": c} for t, c in top_topics],
+                "recent_activity": learning_history[-10:]
+            }
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+# 3. 自适应测试
+@app.route('/adaptive_test', methods=['POST'])
+def adaptive_test():
+    """生成自适应测试"""
+    try:
+        data = request.json
+        difficulty = data.get('difficulty', 'medium')
+        num_questions = data.get('num_questions', 5)
+        
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        prompt = f"""基于知识库内容，生成{num_questions}道{difficulty}难度的测试题。
+
+知识库概览：
+{', '.join([meta['filename'] for meta in file_metadata.values()])}
+
+要求：
+1. 包含选择题和简答题
+2. 难度为{difficulty}
+3. 题目要准确且有针对性
+4. 每题提供答案解析
+
+格式：
+题目1：
+A) 选项1
+B) 选项2
+答案：
+解析：
+
+请生成："""
+        
+        response = ollama.generate(model='qwen2.5:7b', prompt=prompt)
+        
+        return jsonify({
+            "success": True,
+            "test": response['response'],
+            "difficulty": difficulty
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+# 4. 智能笔记助手
+@app.route('/smart_notes', methods=['POST'])
+def smart_notes():
+    """智能笔记生成"""
+    try:
+        data = request.json
+        file_id = data.get('file_id', '')
+        
+        if not file_id or file_id not in file_metadata:
+            # 使用全部内容
+            sample_texts = [item['text'] for item in knowledge_base[:5]]
+        else:
+            sample_texts = [item['text'] for item in knowledge_base if item['file_id'] == file_id][:5]
+        
+        content = '\n\n'.join(sample_texts)
+        
+        prompt = f"""作为智能笔记助手，请为以下内容生成结构化笔记：
+
+{content}
+
+要求：
+1. 提取核心要点
+2. 按主题分类
+3. 标注重点概念
+4. 添加学习建议
+
+格式：
+## 核心要点
+- 要点1
+- 要点2
+
+## 重点概念
+- 概念1：说明
+
+## 学习建议
+- 建议1
+
+请生成："""
+        
+        response = ollama.generate(model='qwen2.5:7b', prompt=prompt)
+        
+        return jsonify({
+            "success": True,
+            "notes": response['response']
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+# 5. 概念可视化（思维导图）
+@app.route('/concept_map', methods=['POST'])
+def concept_map():
+    """生成概念地图"""
+    try:
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        # 提取关键概念
+        all_keywords = []
+        for meta in file_metadata.values():
+            all_keywords.extend([kw["word"] for kw in meta["keywords"][:3]])
+        
+        concept_counter = Counter(all_keywords)
+        main_concepts = concept_counter.most_common(8)
+        
+        # 构建思维导图数据
+        mindmap = {
+            "name": "知识体系",
+            "children": [
+                {
+                    "name": concept,
+                    "value": count,
+                    "children": []
+                }
+                for concept, count in main_concepts
+            ]
+        }
+        
+        return jsonify({
+            "success": True,
+            "mindmap": mindmap
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+# 保留原有功能（出题、大纲、路径等）
+@app.route('/generate_quiz', methods=['POST'])
+def generate_quiz():
+    """智能出题"""
+    try:
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        sample = '\n'.join([item['text'] for item in knowledge_base[:3]])
+        
+        prompt = f"""基于以下内容生成5道测试题：
+
+{sample}
+
+要求：包含选择题和简答题，提供答案
+
+请生成："""
+        
+        response = ollama.generate(model='qwen2.5:7b', prompt=prompt)
+        
+        return jsonify({"success": True, "quiz": response['response']})
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route('/generate_outline', methods=['POST'])
+def generate_outline():
+    """生成教学大纲"""
+    try:
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        sample = '\n'.join([item['text'] for item in knowledge_base[:5]])
+        
+        prompt = f"""为以下内容生成结构化教学大纲：
+
+{sample}
+
+要求：包含章节、要点、学时建议
+
+请生成："""
+        
+        response = ollama.generate(model='qwen2.5:7b', prompt=prompt)
+        
+        return jsonify({"success": True, "outline": response['response']})
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route('/generate_path', methods=['POST'])
+def generate_path():
+    """学习路径规划"""
+    try:
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        keywords = []
+        for meta in file_metadata.values():
+            keywords.extend([kw["word"] for kw in meta["keywords"][:2]])
+        
+        topics = ', '.join(list(set(keywords))[:8])
+        
+        prompt = f"""为以下主题设计学习路径：
+
+{topics}
+
+要求：
+1. 分阶段规划
+2. 标注难度
+3. 给出时间建议
+4. 提供学习方法
+
+请生成："""
+        
+        response = ollama.generate(model='qwen2.5:7b', prompt=prompt)
+        
+        return jsonify({"success": True, "path": response['response']})
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route('/extract_keywords', methods=['POST'])
+def extract_keywords():
+    """提取关键知识点"""
+    try:
+        if not file_metadata:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        all_keywords = []
+        for meta in file_metadata.values():
+            all_keywords.extend(meta["keywords"])
+        
+        keyword_counter = {}
+        for kw in all_keywords:
+            word = kw["word"]
+            if word in keyword_counter:
+                keyword_counter[word]["freq"] += kw["freq"]
+            else:
+                keyword_counter[word] = {"word": word, "freq": kw["freq"]}
+        
+        sorted_keywords = sorted(keyword_counter.values(), key=lambda x: x["freq"], reverse=True)[:15]
+        
+        return jsonify({
+            "success": True,
+            "keywords": sorted_keywords
+        })
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route('/generate_summary', methods=['POST'])
+def generate_summary():
+    """智能摘要"""
+    try:
+        if not knowledge_base:
+            return jsonify({"success": False, "message": "请先上传文件"})
+        
+        sample = '\n'.join([item['text'] for item in knowledge_base[:5]])
+        
+        prompt = f"""为以下内容生成结构化摘要：
+
+{sample}
+
+要求：提炼核心内容，分点说明
+
+请生成："""
+        
+        response = ollama.generate(model='qwen2.5:7b', prompt=prompt)
+        
+        return jsonify({"success": True, "summary": response['response']})
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route('/stats', methods=['GET'])
+def stats():
+    """统计信息"""
+    return jsonify({
+        "total_documents": len(knowledge_base),
+        "total_files": len(file_metadata),
+        "chat_count": len(learning_history)
+    })
+
+@app.route('/export_history', methods=['GET'])
+def export_history():
+    """导出对话历史"""
+    return jsonify({
+        "success": True,
+        "history": learning_history
+    })
+
+if __name__ == '__main__':
+    print("✨ 灿灿AI 4.0 启动成功！")
+    print("🌐 访问: http://localhost:5000")
+    app.run(debug=True, host='0.0.0.0', port=5000)
+EOF

@@ -1,0 +1,313 @@
+cat > modules/document_processor.py << 'EOF'
+"""
+============================================
+文档处理模块
+支持 PDF, DOCX, TXT 文件解析与处理
+============================================
+"""
+
+import os
+import re
+from typing import List, Dict, Optional
+import logging
+
+# PDF处理
+try:
+    import PyPDF2
+    from pdfminer.high_level import extract_text as pdfminer_extract
+except ImportError:
+    PyPDF2 = None
+    pdfminer_extract = None
+
+# Word文档处理
+try:
+    from docx import Document
+except ImportError:
+    Document = None
+
+# 文本处理
+import jieba
+import jieba.analyse
+from collections import Counter
+
+logger = logging.getLogger(__name__)
+
+
+class DocumentProcessor:
+    """文档处理器"""
+    
+    def __init__(self):
+        """初始化"""
+        self.chunk_size = 500  # 默认分块大小
+        self.chunk_overlap = 50  # 重叠大小
+        
+    def extract_text(self, filepath: str, file_type: str) -> str:
+        """
+        提取文件文本内容
+        
+        Args:
+            filepath: 文件路径
+            file_type: 文件类型 (pdf, docx, txt)
+            
+        Returns:
+            提取的文本内容
+        """
+        try:
+            if file_type == 'pdf':
+                return self._extract_pdf(filepath)
+            elif file_type in ['docx', 'doc']:
+                return self._extract_docx(filepath)
+            elif file_type == 'txt':
+                return self._extract_txt(filepath)
+            else:
+                raise ValueError(f"不支持的文件类型: {file_type}")
+        except Exception as e:
+            logger.error(f"提取文本失败 {filepath}: {e}")
+            raise
+    
+    def _extract_pdf(self, filepath: str) -> str:
+        """提取PDF文本"""
+        try:
+            # 方法1: 使用pdfminer
+            if pdfminer_extract:
+                text = pdfminer_extract(filepath)
+                if text.strip():
+                    return text
+            
+            # 方法2: 使用PyPDF2
+            if PyPDF2:
+                with open(filepath, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    text = ""
+                    for page in pdf_reader.pages:
+                        text += page.extract_text() + "\n"
+                    return text
+            
+            raise ImportError("需要安装 pdfminer.six 或 PyPDF2")
+            
+        except Exception as e:
+            logger.error(f"PDF提取失败: {e}")
+            raise
+    
+    def _extract_docx(self, filepath: str) -> str:
+        """提取Word文档文本"""
+        if not Document:
+            raise ImportError("需要安装 python-docx")
+        
+        try:
+            doc = Document(filepath)
+            text = "\n".join([para.text for para in doc.paragraphs])
+            return text
+        except Exception as e:
+            logger.error(f"DOCX提取失败: {e}")
+            raise
+    
+    def _extract_txt(self, filepath: str) -> str:
+        """提取TXT文本"""
+        try:
+            # 尝试多种编码
+            encodings = ['utf-8', 'gbk', 'gb2312', 'latin1']
+            
+            for encoding in encodings:
+                try:
+                    with open(filepath, 'r', encoding=encoding) as f:
+                        return f.read()
+                except UnicodeDecodeError:
+                    continue
+            
+            # 如果都失败，使用errors='ignore'
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                return f.read()
+                
+        except Exception as e:
+            logger.error(f"TXT提取失败: {e}")
+            raise
+    
+    def chunk_text(self, text: str, chunk_size: Optional[int] = None, 
+                   overlap: Optional[int] = None) -> List[str]:
+        """
+        将文本分块
+        
+        Args:
+            text: 输入文本
+            chunk_size: 块大小（字符数）
+            overlap: 重叠大小
+            
+        Returns:
+            文本块列表
+        """
+        chunk_size = chunk_size or self.chunk_size
+        overlap = overlap or self.chunk_overlap
+        
+        if not text.strip():
+            return []
+        
+        # 清理文本
+        text = self._clean_text(text)
+        
+        # 按段落分割
+        paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+        
+        chunks = []
+        current_chunk = ""
+        
+        for para in paragraphs:
+            # 如果当前块+新段落超过大小限制
+            if len(current_chunk) + len(para) > chunk_size:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                    # 保留重叠部分
+                    current_chunk = current_chunk[-overlap:] + " " + para
+                else:
+                    # 段落本身就很长，直接切分
+                    current_chunk = para
+            else:
+                current_chunk += " " + para if current_chunk else para
+        
+        # 添加最后一块
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        return chunks
+    
+    def _clean_text(self, text: str) -> str:
+        """清理文本"""
+        # 移除多余空白
+        text = re.sub(r'\s+', ' ', text)
+        # 移除特殊字符（保留中英文、数字、标点）
+        text = re.sub(r'[^\w\s\u4e00-\u9fff，。！？、；：""''（）【】《》\.,!?;:\'"()$$$$<>-]', '', text)
+        return text.strip()
+    
+    def extract_keywords(self, text: str, topK: int = 10) -> List[str]:
+        """
+        提取关键词
+        
+        Args:
+            text: 输入文本
+            topK: 返回关键词数量
+            
+        Returns:
+            关键词列表
+        """
+        try:
+            # 使用jieba提取关键词
+            keywords = jieba.analyse.extract_tags(text, topK=topK, withWeight=False)
+            return keywords
+        except Exception as e:
+            logger.error(f"关键词提取失败: {e}")
+            return []
+    
+    def calculate_readability(self, text: str) -> float:
+        """
+        计算文本可读性（简化版）
+        
+        Returns:
+            可读性分数 (0-100)
+        """
+        try:
+            # 简化的可读性计算
+            words = jieba.lcut(text)
+            sentences = [s for s in re.split(r'[。！？.!?]', text) if s.strip()]
+            
+            if not sentences:
+                return 50.0
+            
+            avg_words_per_sentence = len(words) / len(sentences)
+            
+            # 基于平均句长计算（10-20词为理想）
+            if 10 <= avg_words_per_sentence <= 20:
+                score = 100
+            elif avg_words_per_sentence < 10:
+                score = 70 + avg_words_per_sentence * 3
+            else:
+                score = max(20, 100 - (avg_words_per_sentence - 20) * 2)
+            
+            return min(100, max(0, score))
+            
+        except Exception as e:
+            logger.error(f"可读性计算失败: {e}")
+            return 50.0
+    
+    def assess_complexity(self, text: str) -> str:
+        """
+        评估文本复杂度
+        
+        Returns:
+            复杂度级别: 简单/中等/复杂
+        """
+        try:
+            # 基于词汇多样性和句子长度
+            words = jieba.lcut(text)
+            unique_words = set(words)
+            
+            diversity = len(unique_words) / len(words) if words else 0
+            
+            sentences = [s for s in re.split(r'[。！？.!?]', text) if s.strip()]
+            avg_sentence_length = len(words) / len(sentences) if sentences else 0
+            
+            # 综合评分
+            if diversity > 0.7 or avg_sentence_length > 25:
+                return "复杂"
+            elif diversity > 0.5 or avg_sentence_length > 15:
+                return "中等"
+            else:
+                return "简单"
+                
+        except Exception as e:
+            logger.error(f"复杂度评估失败: {e}")
+            return "中等"
+    
+    def extract_topics(self, text: str, num_topics: int = 5) -> List[str]:
+        """
+        提取主题
+        
+        Args:
+            text: 输入文本
+            num_topics: 主题数量
+            
+        Returns:
+            主题列表
+        """
+        try:
+            # 使用关键词作为主题（简化版）
+            keywords = self.extract_keywords(text, topK=num_topics * 2)
+            
+            # 简单聚类（基于词频）
+            words = jieba.lcut(text)
+            word_freq = Counter(words)
+            
+            topics = []
+            for kw in keywords[:num_topics]:
+                if word_freq[kw] > 2:  # 至少出现2次
+                    topics.append(kw)
+            
+            return topics
+            
+        except Exception as e:
+            logger.error(f"主题提取失败: {e}")
+            return []
+    
+    def get_document_stats(self, text: str) -> Dict:
+        """
+        获取文档统计信息
+        
+        Returns:
+            统计信息字典
+        """
+        try:
+            words = jieba.lcut(text)
+            sentences = [s for s in re.split(r'[。！？.!?]', text) if s.strip()]
+            paragraphs = [p for p in text.split('\n') if p.strip()]
+            
+            return {
+                'characters': len(text),
+                'words': len(words),
+                'sentences': len(sentences),
+                'paragraphs': len(paragraphs),
+                'avg_word_length': sum(len(w) for w in words) / len(words) if words else 0,
+                'avg_sentence_length': len(words) / len(sentences) if sentences else 0
+            }
+        except Exception as e:
+            logger.error(f"统计信息获取失败: {e}")
+            return {}
+EOF

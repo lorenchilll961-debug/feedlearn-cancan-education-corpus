@@ -1,0 +1,11 @@
+# 添加执行权限
+chmod +x ~/Downloads/ngrok
+
+# 测试
+~/Downloads/ngrok version
+
+# 配置token
+~/Downloads/ngrok config add-authtoken （  ）
+
+# 启动（保证python app.py在运行）
+~/Downloads/ngrok http 5001

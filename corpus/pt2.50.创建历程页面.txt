@@ -1,0 +1,186 @@
+cat > templates/milestones.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发展历程 - 灿灿AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">✨</span>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/team" class="nav-link">👥 团队</a>
+                <a href="/milestones" class="nav-link active">📅 历程</a>
+                <a href="/news" class="nav-link">📰 动态</a>
+                <a href="/contact" class="nav-link">📞 联系</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <div class="team-hero">
+        <h1 style="font-size: 3em; margin-bottom: 20px;">📅 发展历程</h1>
+        <p style="font-size: 1.3em; opacity: 0.9;">从构想到现实，灿灿的成长之路</p>
+    </div>
+
+    <!-- Timeline -->
+    <div class="container">
+        <div class="card" style="margin-top: 40px;">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🛤️</span>
+                    项目时间轴
+                </div>
+            </div>
+            
+            <div class="timeline">
+                {% for milestone in milestones %}
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-date">📅 {{ milestone.date }}</div>
+                        <div class="timeline-event">{{ milestone.event }}</div>
+                        <div class="timeline-desc">{{ milestone.desc }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Key Achievements -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🏆</span>
+                    关键成就
+                </div>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-btn" style="cursor: default; border-color: var(--success);">
+                    <span class="feature-btn-icon">✅</span>
+                    <div class="feature-btn-title">技术突破</div>
+                    <div class="feature-btn-desc">成功实现RAG本地化部署，支持多语种无缝切换</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default; border-color: var(--success);">
+                    <span class="feature-btn-icon">📚</span>
+                    <div class="feature-btn-title">语料库建设</div>
+                    <div class="feature-btn-desc">构建涵盖东盟各国的高质量教育语料数据库</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default; border-color: var(--success);">
+                    <span class="feature-btn-icon">🎯</span>
+                    <div class="feature-btn-title">功能创新</div>
+                    <div class="feature-btn-desc">开发智能出题、学习路径规划等10+实用功能</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default; border-color: var(--success);">
+                    <span class="feature-btn-icon">🌐</span>
+                    <div class="feature-btn-title">国际合作</div>
+                    <div class="feature-btn-desc">入围AI东盟创新大赛，获得国际认可</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default; border-color: var(--success);">
+                    <span class="feature-btn-icon">👨‍🎓</span>
+                    <div class="feature-btn-title">用户测试</div>
+                    <div class="feature-btn-desc">完成100+真实场景测试，用户满意度达95%</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default; border-color: var(--success);">
+                    <span class="feature-btn-icon">🚀</span>
+                    <div class="feature-btn-title">正式发布</div>
+                    <div class="feature-btn-desc">FeedLearn 3.0正式上线，服务全球用户</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Future Plan -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🔮</span>
+                    未来规划
+                </div>
+            </div>
+            <div style="line-height: 2; font-size: 1.1em;">
+                <div style="margin-bottom: 30px;">
+                    <h3 style="color: var(--klein-blue); margin-bottom: 15px; font-size: 1.4em;">📍 短期目标（3-6个月）</h3>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            ✅ 优化AI响应速度，提升用户体验
+                        </li>
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            ✅ 扩展语料库规模，涵盖更多学科领域
+                        </li>
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            ✅ 开发移动端APP，实现随时随地学习
+                        </li>
+                        <li style="padding: 10px 0;">
+                            ✅ 建立教育者社区，促进资源共享
+                        </li>
+                    </ul>
+                </div>
+                
+                <div style="margin-bottom: 30px;">
+                    <h3 style="color: var(--klein-blue); margin-bottom: 15px; font-size: 1.4em;">🎯 中期目标（6-12个月）</h3>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            🚀 推出企业版，服务学校和教育机构
+                        </li>
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            🚀 集成更多AI模型，提供多样化服务
+                        </li>
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            🚀 开展国际合作，拓展东盟市场
+                        </li>
+                        <li style="padding: 10px 0;">
+                            🚀 建立API接口，支持第三方集成
+                        </li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 style="color: var(--klein-blue); margin-bottom: 15px; font-size: 1.4em;">🌟 长期愿景（1-3年）</h3>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            💎 成为东盟地区领先的AI教育平台
+                        </li>
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            💎 服务100万+教育工作者和学习者
+                        </li>
+                        <li style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                            💎 推动教育公平，缩小数字鸿沟
+                        </li>
+                        <li style="padding: 10px 0;">
+                            💎 引领AI教育创新，树立行业标杆
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Call to Action -->
+        <div class="card" style="background: linear-gradient(135deg, var(--klein-blue), var(--accent)); color: white; text-align: center; padding: 60px 40px;">
+            <h2 style="font-size: 2.5em; margin-bottom: 20px;">🌟 见证我们的成长</h2>
+            <p style="font-size: 1.2em; margin-bottom: 40px; opacity: 0.9;">
+                每一步都是为了让教育更智能、更普惠
+            </p>
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <a href="/news" class="btn-hero btn-primary">📰 查看最新动态</a>
+                <a href="/" class="btn-hero btn-secondary">🚀 立即体验</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+ENDOFFILE

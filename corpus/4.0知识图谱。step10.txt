@@ -1,0 +1,464 @@
+cat > static/js/main.js << 'EOF'
+/* ============================================
+   灿灿AI - 知识图谱可视化
+   ============================================ */
+
+class KnowledgeGraphManager {
+    constructor() {
+        this.graphData = null;
+        this.svg = null;
+        this.simulation = null;
+        this.selectedNode = null;
+        this.zoomLevel = 1;
+        
+        this.initElements();
+        this.initEventListeners();
+        this.loadGraphData();
+    }
+    
+    initElements() {
+        this.graphContainer = document.getElementById('graphContainer');
+        this.generateBtn = document.getElementById('generateGraph');
+        this.refreshBtn = document.getElementById('refreshGraph');
+        this.exportBtn = document.getElementById('exportGraph');
+        this.zoomInBtn = document.getElementById('zoomIn');
+        this.zoomOutBtn = document.getElementById('zoomOut');
+        this.resetViewBtn = document.getElementById('resetView');
+        
+        this.nodeCount = document.getElementById('nodeCount');
+        this.edgeCount = document.getElementById('edgeCount');
+        this.clusterCount = document.getElementById('clusterCount');
+        
+        this.nodeDetail = document.getElementById('nodeDetail');
+        this.searchInput = document.getElementById('graphSearch');
+    }
+    
+    initEventListeners() {
+        if (this.generateBtn) {
+            this.generateBtn.addEventListener('click', () => this.generateGraph());
+        }
+        
+        if (this.refreshBtn) {
+            this.refreshBtn.addEventListener('click', () => this.refreshGraph());
+        }
+        
+        if (this.exportBtn) {
+            this.exportBtn.addEventListener('click', () => this.exportGraph());
+        }
+        
+        if (this.zoomInBtn) {
+            this.zoomInBtn.addEventListener('click', () => this.zoom(1.2));
+        }
+        
+        if (this.zoomOutBtn) {
+            this.zoomOutBtn.addEventListener('click', () => this.zoom(0.8));
+        }
+        
+        if (this.resetViewBtn) {
+            this.resetViewBtn.addEventListener('click', () => this.resetView());
+        }
+        
+        if (this.searchInput) {
+            this.searchInput.addEventListener('input', Utils.debounce((e) => {
+                this.searchNodes(e.target.value);
+            }, 300));
+        }
+    }
+    
+    // === 图谱生成 ===
+    async generateGraph() {
+        LoadingManager.show(this.graphContainer, '正在构建知识图谱...');
+        this.generateBtn.disabled = true;
+        
+        try {
+            const response = await fetch('/build_knowledge_graph', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                this.graphData = data.graph;
+                this.renderGraph();
+                this.updateStats();
+                Utils.showToast('知识图谱构建成功', 'success');
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Graph generation error:', error);
+            Utils.showToast('构建失败', 'error');
+        } finally {
+            LoadingManager.hide(this.graphContainer);
+            this.generateBtn.disabled = false;
+        }
+    }
+    
+    async loadGraphData() {
+        try {
+            const response = await fetch('/get_knowledge_graph');
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.graph) {
+                this.graphData = data.graph;
+                this.renderGraph();
+                this.updateStats();
+            }
+        } catch (error) {
+            console.error('Load graph error:', error);
+        }
+    }
+    
+    // === D3.js 图谱渲染 ===
+    renderGraph() {
+        if (!this.graphData || !this.graphData.nodes || this.graphData.nodes.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+        
+        // 清空容器
+        this.graphContainer.innerHTML = '';
+        
+        const width = this.graphContainer.clientWidth;
+        const height = this.graphContainer.clientHeight;
+        
+        // 创建SVG
+        this.svg = d3.select(this.graphContainer)
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .attr('class', 'graph-svg');
+        
+        // 添加缩放功能
+        const g = this.svg.append('g');
+        
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+                this.zoomLevel = event.transform.k;
+            });
+        
+        this.svg.call(zoom);
+        
+        // 创建力导向图
+        this.simulation = d3.forceSimulation(this.graphData.nodes)
+            .force('link', d3.forceLink(this.graphData.links)
+                .id(d => d.id)
+                .distance(100))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(50));
+        
+        // 添加箭头标记
+        g.append('defs').selectAll('marker')
+            .data(['end'])
+            .enter().append('marker')
+            .attr('id', 'arrow')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 25)
+            .attr('refY', 0)
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#999');
+        
+        // 绘制连线
+        const link = g.append('g')
+            .selectAll('line')
+            .data(this.graphData.links)
+            .enter().append('line')
+            .attr('class', 'graph-link')
+            .attr('stroke', '#999')
+            .attr('stroke-width', d => Math.sqrt(d.weight || 1))
+            .attr('marker-end', 'url(#arrow)');
+        
+        // 绘制节点
+        const node = g.append('g')
+            .selectAll('g')
+            .data(this.graphData.nodes)
+            .enter().append('g')
+            .attr('class', 'graph-node')
+            .call(d3.drag()
+                .on('start', (event, d) => this.dragStarted(event, d))
+                .on('drag', (event, d) => this.dragged(event, d))
+                .on('end', (event, d) => this.dragEnded(event, d)));
+        
+        // 节点圆形
+        node.append('circle')
+            .attr('r', d => 15 + (d.importance || 0) * 5)
+            .attr('fill', d => this.getNodeColor(d.category))
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 2)
+            .style('filter', 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))');
+        
+        // 节点标签
+        node.append('text')
+            .text(d => d.name)
+            .attr('x', 0)
+            .attr('y', 30)
+            .attr('text-anchor', 'middle')
+            .attr('class', 'graph-label')
+            .style('font-size', '12px')
+            .style('font-weight', '600')
+            .style('fill', '#333')
+            .style('pointer-events', 'none');
+        
+        // 节点交互
+        node.on('click', (event, d) => this.showNodeDetail(d))
+            .on('mouseenter', (event, d) => this.highlightNode(d))
+            .on('mouseleave', () => this.unhighlightNodes());
+        
+        // 更新模拟
+        this.simulation.on('tick', () => {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+            
+            node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+    }
+    
+    // === D3拖拽 ===
+    dragStarted(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+    
+    dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+    
+    dragEnded(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+    
+    // === 节点样式 ===
+    getNodeColor(category) {
+        const colors = {
+            'concept': '#002FA7',
+            'topic': '#00D9FF',
+            'keyword': '#4ECDC4',
+            'definition': '#95E1D3',
+            'default': '#BDBDBD'
+        };
+        return colors[category] || colors['default'];
+    }
+    
+    // === 节点详情 ===
+    showNodeDetail(node) {
+        this.selectedNode = node;
+        
+        if (this.nodeDetail) {
+            this.nodeDetail.innerHTML = `
+                <div class="card glass-effect" style="animation: slideInRight 0.3s ease-out;">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="12" r="10"/>
+                            </svg>
+                            ${node.name}
+                        </div>
+                        <button class="btn-icon" onclick="kgManager.closeNodeDetail()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div style="padding: 20px;">
+                        <div style="margin-bottom: 16px;">
+                            <span class="badge badge-primary">${node.category || '概念'}</span>
+                            ${node.importance ? `<span class="badge badge-success">重要度: ${node.importance}</span>` : ''}
+                        </div>
+                        ${node.description ? `
+                            <div style="margin-bottom: 16px;">
+                                <h4 style="margin-bottom: 8px; color: var(--gray-700);">描述</h4>
+                                <p style="line-height: 1.6; color: var(--gray-600);">${node.description}</p>
+                            </div>
+                        ` : ''}
+                        ${node.related && node.related.length > 0 ? `
+                            <div style="margin-bottom: 16px;">
+                                <h4 style="margin-bottom: 8px; color: var(--gray-700);">相关概念</h4>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    ${node.related.map(r => `<span class="badge badge-primary">${r}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        <button class="btn btn-primary" onclick="kgManager.exploreNode('${node.id}')">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
+                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                            </svg>
+                            深入探索
+                        </button>
+                    </div>
+                </div>
+            `;
+            this.nodeDetail.style.display = 'block';
+        }
+    }
+    
+    closeNodeDetail() {
+        if (this.nodeDetail) {
+            this.nodeDetail.style.display = 'none';
+        }
+        this.selectedNode = null;
+    }
+    
+    exploreNode(nodeId) {
+        // 可以实现节点深入探索功能
+        Utils.showToast('正在探索相关知识...', 'info');
+        // 发送请求获取更多信息
+    }
+    
+    // === 高亮功能 ===
+    highlightNode(node) {
+        d3.selectAll('.graph-node')
+            .style('opacity', d => {
+                const connected = this.graphData.links.some(
+                    l => (l.source.id === node.id && l.target.id === d.id) ||
+                         (l.target.id === node.id && l.source.id === d.id)
+                );
+                return d.id === node.id || connected ? 1 : 0.3;
+            });
+        
+        d3.selectAll('.graph-link')
+            .style('opacity', d => 
+                d.source.id === node.id || d.target.id === node.id ? 1 : 0.1
+            );
+    }
+    
+    unhighlightNodes() {
+        d3.selectAll('.graph-node').style('opacity', 1);
+        d3.selectAll('.graph-link').style('opacity', 1);
+    }
+    
+    // === 搜索功能 ===
+    searchNodes(query) {
+        if (!query || !this.graphData) {
+            this.unhighlightNodes();
+            return;
+        }
+        
+        const lowerQuery = query.toLowerCase();
+        const matchedNodes = this.graphData.nodes.filter(n => 
+            n.name.toLowerCase().includes(lowerQuery)
+        );
+        
+        if (matchedNodes.length > 0) {
+            d3.selectAll('.graph-node')
+                .style('opacity', d => 
+                    matchedNodes.some(m => m.id === d.id) ? 1 : 0.2
+                );
+            
+            // 居中显示第一个匹配的节点
+            if (matchedNodes[0].x && matchedNodes[0].y) {
+                this.centerNode(matchedNodes[0]);
+            }
+        } else {
+            Utils.showToast('未找到匹配的节点', 'warning');
+        }
+    }
+    
+    centerNode(node) {
+        const width = this.graphContainer.clientWidth;
+        const height = this.graphContainer.clientHeight;
+        
+        const transform = d3.zoomIdentity
+            .translate(width / 2 - node.x, height / 2 - node.y)
+            .scale(1.5);
+        
+        this.svg.transition()
+            .duration(750)
+            .call(d3.zoom().transform, transform);
+    }
+    
+    // === 视图控制 ===
+    zoom(factor) {
+        this.svg.transition()
+            .duration(300)
+            .call(d3.zoom().scaleBy, factor);
+    }
+    
+    resetView() {
+        this.svg.transition()
+            .duration(750)
+            .call(d3.zoom().transform, d3.zoomIdentity);
+    }
+    
+    // === 刷新与导出 ===
+    async refreshGraph() {
+        this.closeNodeDetail();
+        await this.generateGraph();
+    }
+    
+    exportGraph() {
+        if (!this.graphData) {
+            Utils.showToast('暂无图谱数据', 'warning');
+            return;
+        }
+        
+        // 导出为JSON
+        const content = JSON.stringify(this.graphData, null, 2);
+        Utils.downloadFile(content, `knowledge-graph-${Date.now()}.json`, 'application/json');
+        Utils.showToast('知识图谱已导出', 'success');
+        
+        // 也可以导出为PNG
+        // this.exportAsPNG();
+    }
+    
+    exportAsPNG() {
+        // 使用html2canvas或其他库导出SVG为PNG
+        Utils.showToast('PNG导出功能开发中...', 'info');
+    }
+    
+    // === 统计 ===
+    updateStats() {
+        if (this.graphData) {
+            if (this.nodeCount) {
+                this.nodeCount.textContent = this.graphData.nodes.length;
+            }
+            if (this.edgeCount) {
+                this.edgeCount.textContent = this.graphData.links.length;
+            }
+            if (this.clusterCount) {
+                // 计算聚类数量（简化版）
+                const categories = new Set(this.graphData.nodes.map(n => n.category));
+                this.clusterCount.textContent = categories.size;
+            }
+        }
+    }
+    
+    showEmptyState() {
+        this.graphContainer.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--gray-500);">
+                <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor" opacity="0.2">
+                    <circle cx="6" cy="6" r="3"/>
+                    <circle cx="18" cy="6" r="3"/>
+                    <circle cx="12" cy="18" r="3"/>
+                    <path d="M8 7l3 9M16 7l-3 9" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <h3 style="margin-top: 20px;">暂无知识图谱</h3>
+                <p>上传文档后点击"构建知识图谱"按钮</p>
+            </div>
+        `;
+    }
+}
+
+// === 初始化 ===
+let kgManager;
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('graphContainer')) {
+        kgManager = new KnowledgeGraphManager();
+    }
+});
+EOF

@@ -1,0 +1,241 @@
+cat > templates/contact.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>联系我们 - 灿灿AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">✨</span>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/team" class="nav-link">👥 团队</a>
+                <a href="/milestones" class="nav-link">📅 历程</a>
+                <a href="/news" class="nav-link">📰 动态</a>
+                <a href="/contact" class="nav-link active">📞 联系</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <div class="team-hero">
+        <h1 style="font-size: 3em; margin-bottom: 20px;">📞 联系我们</h1>
+        <p style="font-size: 1.3em; opacity: 0.9;">我们随时期待与您交流合作</p>
+    </div>
+
+    <!-- Contact Content -->
+    <div class="container">
+        <!-- Contact Cards -->
+        <div class="grid" style="margin-top: 40px;">
+            <!-- Leader Contact -->
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 4em; margin-bottom: 20px;">👨‍💼</div>
+                <h2 style="color: var(--klein-blue); margin-bottom: 10px;">团队负责人</h2>
+                <h3 style="font-size: 1.8em; margin-bottom: 20px; color: var(--text-primary);">
+                    {{ team.leader.name }}
+                </h3>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <a href="tel:{{ team.leader.phone }}" 
+                       style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px; background: var(--bg-secondary); border-radius: 12px; text-decoration: none; color: var(--text-primary); font-weight: 600; transition: all 0.3s;"
+                       onmouseover="this.style.background='var(--klein-blue)'; this.style.color='white'"
+                       onmouseout="this.style.background='var(--bg-secondary)'; this.style.color='var(--text-primary)'">
+                        📱 {{ team.leader.phone }}
+                    </a>
+                    <div style="padding: 16px; background: var(--bg-secondary); border-radius: 12px; font-weight: 600;">
+                        💼 {{ team.leader.role }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Contact -->
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 4em; margin-bottom: 20px;">📧</div>
+                <h2 style="color: var(--klein-blue); margin-bottom: 10px;">电子邮箱</h2>
+                <h3 style="font-size: 1.3em; margin-bottom: 30px; color: var(--text-secondary);">
+                    商务合作 · 技术交流 · 意见反馈
+                </h3>
+                <a href="mailto:{{ team.email }}" 
+                   style="display: inline-block; padding: 20px 40px; background: linear-gradient(135deg, var(--klein-blue), var(--klein-blue-light)); color: white; text-decoration: none; border-radius: 12px; font-size: 1.2em; font-weight: 600; transition: all 0.3s;"
+                   onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0,47,167,0.3)'"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    {{ team.email }}
+                </a>
+            </div>
+        </div>
+
+        <!-- Contact Methods -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">💬</span>
+                    多种联系方式
+                </div>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">📱</span>
+                    <div class="feature-btn-title">电话咨询</div>
+                    <div class="feature-btn-desc">工作日 9:00-18:00<br>{{ team.leader.phone }}</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">📧</span>
+                    <div class="feature-btn-title">邮件联系</div>
+                    <div class="feature-btn-desc">24小时内回复<br>{{ team.email }}</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">💬</span>
+                    <div class="feature-btn-title">在线客服</div>
+                    <div class="feature-btn-desc">实时在线支持<br>周一至周五 9:00-18:00</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🌐</span>
+                    <div class="feature-btn-title">社交媒体</div>
+                    <div class="feature-btn-desc">关注我们获取最新动态<br>微信 · 微博 · Twitter</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Message -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">✉️</span>
+                    快速留言
+                </div>
+            </div>
+            <form style="display: grid; gap: 20px;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">
+                        您的姓名
+                    </label>
+                    <input type="text" placeholder="请输入您的姓名" 
+                           style="width: 100%; padding: 14px 18px; border: 2px solid var(--border); border-radius: 10px; font-size: 1em; font-family: inherit;">
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">
+                        联系方式
+                    </label>
+                    <input type="text" placeholder="手机号码或邮箱地址" 
+                           style="width: 100%; padding: 14px 18px; border: 2px solid var(--border); border-radius: 10px; font-size: 1em; font-family: inherit;">
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">
+                        留言内容
+                    </label>
+                    <textarea placeholder="请输入您想说的话..." rows="6"
+                              style="width: 100%; padding: 14px 18px; border: 2px solid var(--border); border-radius: 10px; font-size: 1em; font-family: inherit; resize: vertical;"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-blue" style="width: 100%; padding: 18px; font-size: 1.1em;">
+                    📤 发送留言
+                </button>
+            </form>
+        </div>
+
+        <!-- FAQ -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">❓</span>
+                    常见问题
+                </div>
+            </div>
+            <div style="display: grid; gap: 15px;">
+                <details style="padding: 20px; background: var(--bg-secondary); border-radius: 12px; cursor: pointer;">
+                    <summary style="font-weight: 600; color: var(--klein-blue); font-size: 1.1em; cursor: pointer;">
+                        Q: 灿灿AI支持哪些语言？
+                    </summary>
+                    <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border); line-height: 1.8;">
+                        A: 灿灿AI目前支持东盟10国语言，包括中文、英语、越南语、泰语、印尼语、马来语、菲律宾语、缅甸语、老挝语和高棉语（柬埔寨语）。
+                    </p>
+                </details>
+                
+                <details style="padding: 20px; background: var(--bg-secondary); border-radius: 12px; cursor: pointer;">
+                    <summary style="font-weight: 600; color: var(--klein-blue); font-size: 1.1em; cursor: pointer;">
+                        Q: 如何开始使用灿灿AI？
+                    </summary>
+                    <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border); line-height: 1.8;">
+                        A: 非常简单！只需访问首页，上传您的教育资料（支持PDF、DOCX、TXT格式），然后就可以开始向灿灿提问了。系统会自动分析文档并构建知识库。
+                    </p>
+                </details>
+                
+                <details style="padding: 20px; background: var(--bg-secondary); border-radius: 12px; cursor: pointer;">
+                    <summary style="font-weight: 600; color: var(--klein-blue); font-size: 1.1em; cursor: pointer;">
+                        Q: 数据安全吗？
+                    </summary>
+                    <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border); line-height: 1.8;">
+                        A: 绝对安全！我们采用本地化部署方案，所有数据都存储在本地服务器，不会上传到第三方云端。您的教育资料和对话记录完全保密。
+                    </p>
+                </details>
+                
+                <details style="padding: 20px; background: var(--bg-secondary); border-radius: 12px; cursor: pointer;">
+                    <summary style="font-weight: 600; color: var(--klein-blue); font-size: 1.1em; cursor: pointer;">
+                        Q: 是否提供企业版服务？
+                    </summary>
+                    <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border); line-height: 1.8;">
+                        A: 是的！我们正在开发企业版，将提供更强大的功能、更大的存储空间和专属技术支持。如有需求，请通过邮件或电话联系我们详谈。
+                    </p>
+                </details>
+            </div>
+        </div>
+
+        <!-- Location -->
+        <div class="card" style="background: linear-gradient(135deg, var(--klein-blue), var(--accent)); color: white; text-align: center; padding: 60px 40px;">
+            <h2 style="font-size: 2.5em; margin-bottom: 20px;">🌏 我们在广西</h2>
+            <p style="font-size: 1.2em; margin-bottom: 30px; opacity: 0.9;">
+                立足广西，面向东盟，服务全球
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 40px;">
+                <div style="padding: 20px; background: rgba(255,255,255,0.1); border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 2em; margin-bottom: 10px;">🏢</div>
+                    <div>团队基地</div>
+                    <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">广西高校</div>
+                </div>
+                <div style="padding: 20px; background: rgba(255,255,255,0.1); border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 2em; margin-bottom: 10px;">🕐</div>
+                    <div>工作时间</div>
+                    <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">周一至周五 9:00-18:00</div>
+                </div>
+                <div style="padding: 20px; background: rgba(255,255,255,0.1); border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 2em; margin-bottom: 10px;">🌐</div>
+                    <div>服务范围</div>
+                    <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">东盟及全球</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Form submission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            showNotification('✅ 留言已发送！我们会尽快与您联系。', 'success');
+            this.reset();
+        });
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 4000);
+        }
+    </script>
+</body>
+</html>
+ENDOFFILE

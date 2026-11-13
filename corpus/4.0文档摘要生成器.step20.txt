@@ -1,0 +1,210 @@
+cat > modules/summarizer.py << 'EOF'
+"""
+============================================
+文档摘要生成器模块
+生成文档摘要和关键信息提取
+============================================
+"""
+
+import re
+from typing import List, Optional
+import logging
+import jieba
+import jieba.analyse
+
+logger = logging.getLogger(__name__)
+
+
+class DocumentSummarizer:
+    """文档摘要生成器"""
+    
+    def __init__(self, llm_client):
+        """
+        初始化
+        
+        Args:
+            llm_client: LLM客户端
+        """
+        self.llm_client = llm_client
+    
+    def generate_summary(self, content: str, max_length: int = 200,
+                        method: str = "auto") -> str:
+        """
+        生成文档摘要
+        
+        Args:
+            content: 文档内容
+            max_length: 最大摘要长度
+            method: 生成方法 (llm, extractive, auto)
+            
+        Returns:
+            摘要文本
+        """
+        try:
+            if not content or not content.strip():
+                return "文档内容为空"
+            
+            # 限制输入长度
+            content = content[:5000]
+            
+            logger.info(f"生成摘要，方法: {method}")
+            
+            if method == "llm" and self.llm_client.model_type != "mock":
+                return self._generate_llm_summary(content, max_length)
+            elif method == "extractive":
+                return self._generate_extractive_summary(content, max_length)
+            else:
+                # 自动选择：优先使用LLM，不可用时使用抽取式
+                if self.llm_client.model_type != "mock":
+                    return self._generate_llm_summary(content, max_length)
+                else:
+                    return self._generate_extractive_summary(content, max_length)
+                    
+        except Exception as e:
+            logger.error(f"生成摘要失败: {e}")
+            return self._generate_simple_summary(content, max_length)
+    
+    def _generate_llm_summary(self, content: str, max_length: int) -> str:
+        """使用LLM生成摘要"""
+        prompt = f"""请为以下文档生成一个简洁的摘要（不超过{max_length}字）：
+
+{content}
+
+摘要要求：
+1. 抓住核心内容和关键信息
+2. 语言简洁流畅
+3. 保持客观准确
+4. 不超过{max_length}字
+
+摘要："""
+        
+        summary = self.llm_client.generate_answer(
+            prompt, "", "zh-CN", "professional", "medium"
+        )
+        
+        # 确保长度
+        if len(summary) > max_length:
+            summary = summary[:max_length] + "..."
+        
+        return summary
+    
+    def _generate_extractive_summary(self, content: str, max_length: int) -> str:
+        """抽取式摘要生成"""
+        # 1. 分句
+        sentences = [s.strip() for s in re.split(r'[。！？.!?]', content) if s.strip()]
+        
+        if not sentences:
+            return content[:max_length]
+        
+        # 2. 计算句子重要度
+        sentence_scores = []
+        
+        # 提取关键词
+        keywords = set(jieba.analyse.extract_tags(content, topK=10))
+        
+        for i, sentence in enumerate(sentences):
+            score = 0
+            
+            # 位置分数（首尾句重要）
+            if i == 0:
+                score += 3
+            elif i == len(sentences) - 1:
+                score += 2
+            elif i < len(sentences) * 0.3:
+                score += 1
+            
+            # 长度分数（适中长度）
+            length = len(sentence)
+            if 20 <= length <= 100:
+                score += 2
+            elif 10 <= length < 20 or 100 < length <= 150:
+                score += 1
+            
+            # 关键词分数
+            sentence_words = set(jieba.lcut(sentence))
+            keyword_count = len(sentence_words & keywords)
+            score += keyword_count * 2
+            
+            # 数字和特殊标记分数
+            if re.search(r'\d+', sentence):
+                score += 1
+            if any(marker in sentence for marker in ['重要', '关键', '核心', '主要', '首先', '其次', '最后']):
+                score += 1
+            
+            sentence_scores.append((score, i, sentence))
+        
+        # 3. 选择重要句子
+        sentence_scores.sort(reverse=True)
+        
+        summary_sentences = []
+        current_length = 0
+        selected_indices = []
+        
+        for score, idx, sentence in sentence_scores:
+            if current_length + len(sentence) <= max_length:
+                summary_sentences.append((idx, sentence))
+                selected_indices.append(idx)
+                current_length += len(sentence)
+            
+            if current_length >= max_length * 0.8:
+                break
+        
+        # 4. 按原文顺序排列
+        summary_sentences.sort(key=lambda x: x[0])
+        summary = "。".join([s for _, s in summary_sentences])
+        
+        if not summary.endswith('。'):
+            summary += '。'
+        
+        return summary
+    
+    def _generate_simple_summary(self, content: str, max_length: int) -> str:
+        """简单摘要（fallback）"""
+        # 取前几句
+        sentences = [s.strip() for s in re.split(r'[。！？]', content) if s.strip()]
+        
+        summary = ""
+        for sentence in sentences:
+            if len(summary) + len(sentence) <= max_length:
+                summary += sentence + "。"
+            else:
+                break
+        
+        return summary if summary else content[:max_length] + "..."
+    
+    def extract_key_points(self, content: str, count: int = 5) -> List[str]:
+        """
+        提取关键要点
+        
+        Args:
+            content: 文档内容
+            count: 要点数量
+            
+        Returns:
+            关键要点列表
+        """
+        try:
+            sentences = [s.strip() for s in re.split(r'[。！？]', content) if s.strip()]
+            
+            # 寻找带有标记词的句子
+            markers = ['首先', '其次', '第一', '第二', '第三', '最后', '总之', '因此', '所以']
+            
+            key_points = []
+            
+            for sentence in sentences:
+                if any(marker in sentence for marker in markers):
+                    key_points.append(sentence)
+                    if len(key_points) >= count:
+                        break
+            
+            # 如果不够，添加长句子
+            if len(key_points) < count:
+                long_sentences = [s for s in sentences if len(s) > 30 and s not in key_points]
+                key_points.extend(long_sentences[:count - len(key_points)])
+            
+            return key_points[:count]
+            
+        except Exception as e:
+            logger.error(f"提取关键要点失败: {e}")
+            return []
+EOF

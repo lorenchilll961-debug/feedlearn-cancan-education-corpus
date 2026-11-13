@@ -1,0 +1,256 @@
+cat > templates/learning_center.html << 'EOF'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学习中心 - 灿灿AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <svg class="brand-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <circle cx="16" cy="16" r="14" fill="url(#gradient1)"/>
+                    <path d="M16 8L20 16L16 24L12 16L16 8Z" fill="white" opacity="0.9"/>
+                    <defs>
+                        <linearGradient id="gradient1" x1="0" y1="0" x2="32" y2="32">
+                            <stop offset="0%" stop-color="#002FA7"/>
+                            <stop offset="100%" stop-color="#00D9FF"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                    </svg>
+                    首页
+                </a>
+                <a href="/knowledge_graph" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/>
+                        <circle cx="12" cy="18" r="3"/>
+                        <path d="M8 7l3 9M16 7l-3 9" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    知识图谱
+                </a>
+                <a href="/learning_center" class="nav-link active">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    学习中心
+                </a>
+                <a href="/resources" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                    资源库
+                </a>
+                <a href="/team" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                    </svg>
+                    团队
+                </a>
+                <a href="/milestones" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>
+                    </svg>
+                    历程
+                </a>
+                <a href="/contact" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                    </svg>
+                    联系
+                </a>
+                <a href="/help" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
+                    </svg>
+                    帮助
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Hero -->
+    <div class="page-hero">
+        <div class="page-hero-content">
+            <div class="page-hero-icon">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" opacity="0.8"/>
+                </svg>
+            </div>
+            <h1>学习中心</h1>
+            <p>深度分析您的学习行为，提供个性化学习建议</p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Quick Actions -->
+        <div class="card glass-effect">
+            <div class="card-header">
+                <div class="card-title">
+                    <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                    </svg>
+                    快捷操作
+                </div>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="action-btn glass-effect" onclick="loadAnalytics()">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+                    </svg>
+                    <span>刷新数据</span>
+                </button>
+                
+                <button class="action-btn glass-effect" onclick="generateReport()">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                    </svg>
+                    <span>生成报告</span>
+                </button>
+                
+                <button class="action-btn glass-effect" onclick="window.location.href='/'">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    <span>开始学习</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Analytics Dashboard -->
+        <div class="grid">
+            <div class="card glass-effect analytics-card">
+                <div class="analytics-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
+                    </svg>
+                </div>
+                <div class="analytics-value" id="totalFiles">0</div>
+                <div class="analytics-label">上传文件</div>
+                <div class="analytics-trend">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                    本周活跃
+                </div>
+            </div>
+
+            <div class="card glass-effect analytics-card">
+                <div class="analytics-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <div class="analytics-value" id="totalQuestions">0</div>
+                <div class="analytics-label">提问次数</div>
+                <div class="analytics-trend">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 14l5-5 5 5z"/>
+                    </svg>
+                    持续增长
+                </div>
+            </div>
+
+            <div class="card glass-effect analytics-card">
+                <div class="analytics-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                    </svg>
+                </div>
+                <div class="analytics-value" id="studyTime">0</div>
+                <div class="analytics-label">学习时长(分钟)</div>
+                <div class="analytics-trend">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 14l5-5 5 5z"/>
+                    </svg>
+                    高效学习
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid">
+            <div class="card glass-effect">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
+                        </svg>
+                        学习趋势
+                    </div>
+                </div>
+                <canvas id="trendChart" height="100"></canvas>
+            </div>
+
+            <div class="card glass-effect">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/>
+                        </svg>
+                        主题分布
+                    </div>
+                </div>
+                <canvas id="topicChart" height="100"></canvas>
+            </div>
+        </div>
+
+        <!-- Activity Timeline -->
+        <div class="card glass-effect">
+            <div class="card-header">
+                <div class="card-title">
+                    <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                        <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                    </svg>
+                    最近活动
+                </div>
+            </div>
+            
+            <div id="activityTimeline" class="activity-timeline">
+                <div class="activity-placeholder">
+                    <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor" opacity="0.1">
+                        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                    </svg>
+                    <p>暂无活动记录</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Topics -->
+        <div class="card glass-effect">
+            <div class="card-header">
+                <div class="card-title">
+                    <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    热门主题
+                </div>
+            </div>
+            
+            <div id="topTopics" class="top-topics">
+                <div class="topic-placeholder">
+                    <p>开始学习后查看热门主题</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/learning_center.js') }}"></script>
+</body>
+</html>
+EOF

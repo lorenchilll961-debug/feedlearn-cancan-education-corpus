@@ -1,0 +1,241 @@
+cat > templates/knowledge_graph.html << 'EOF'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱 - 灿灿AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <svg class="brand-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <circle cx="16" cy="16" r="14" fill="url(#gradient1)"/>
+                    <path d="M16 8L20 16L16 24L12 16L16 8Z" fill="white" opacity="0.9"/>
+                    <defs>
+                        <linearGradient id="gradient1" x1="0" y1="0" x2="32" y2="32">
+                            <stop offset="0%" stop-color="#002FA7"/>
+                            <stop offset="100%" stop-color="#00D9FF"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                    </svg>
+                    首页
+                </a>
+                <a href="/knowledge_graph" class="nav-link active">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/>
+                        <circle cx="12" cy="18" r="3"/>
+                        <path d="M8 7l3 9M16 7l-3 9" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    知识图谱
+                </a>
+                <a href="/learning_center" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    学习中心
+                </a>
+                <a href="/resources" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                    资源库
+                </a>
+                <a href="/team" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                    </svg>
+                    团队
+                </a>
+                <a href="/milestones" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>
+                    </svg>
+                    历程
+                </a>
+                <a href="/contact" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                    </svg>
+                    联系
+                </a>
+                <a href="/help" class="nav-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
+                    </svg>
+                    帮助
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Hero -->
+    <div class="page-hero">
+        <div class="page-hero-content">
+            <div class="page-hero-icon">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="6" cy="6" r="3" opacity="0.8"/>
+                    <circle cx="18" cy="6" r="3" opacity="0.8"/>
+                    <circle cx="12" cy="18" r="3" opacity="0.8"/>
+                    <path d="M8 7l3 9M16 7l-3 9" stroke="currentColor" stroke-width="2" opacity="0.6"/>
+                </svg>
+            </div>
+            <h1>知识图谱</h1>
+            <p>可视化呈现知识网络，洞察概念间的关联关系</p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Control Panel -->
+        <div class="card glass-effect">
+            <div class="card-header">
+                <div class="card-title">
+                    <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/>
+                    </svg>
+                    控制面板
+                </div>
+            </div>
+            
+            <div class="control-panel">
+                <button id="buildGraphBtn" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    构建知识图谱
+                </button>
+                
+                <button id="refreshGraphBtn" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
+                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                    </svg>
+                    重新布局
+                </button>
+                
+                <button id="exportGraphBtn" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
+                        <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+                    </svg>
+                    导出图谱
+                </button>
+                
+                <div class="graph-stats" id="graphStats">
+                    <div class="stat-item">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="12" r="8"/>
+                        </svg>
+                        <span>节点: <strong id="nodeCount">0</strong></span>
+                    </div>
+                    <div class="stat-item">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 12h16M12 4v16" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <span>关系: <strong id="edgeCount">0</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graph Visualization -->
+        <div class="card glass-effect" style="min-height: 600px;">
+            <div class="card-header">
+                <div class="card-title">
+                    <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3v18h18V3H3zm16 16H5V5h14v14z"/>
+                    </svg>
+                    知识网络可视化
+                </div>
+                <div class="graph-legend">
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #002FA7;"></span>
+                        <span>核心概念</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #00D9FF;"></span>
+                        <span>关联概念</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="graphContainer" class="graph-container">
+                <div class="graph-placeholder">
+                    <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor" opacity="0.1">
+                        <circle cx="6" cy="6" r="4"/>
+                        <circle cx="18" cy="6" r="4"/>
+                        <circle cx="12" cy="18" r="4"/>
+                        <path d="M9 7l2 9M15 7l-2 9" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <h3>暂无数据</h3>
+                    <p>点击"构建知识图谱"按钮开始生成</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Insights Panel -->
+        <div class="grid">
+            <div class="card glass-effect">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                        </svg>
+                        关键洞察
+                    </div>
+                </div>
+                <div id="insightsList" class="insights-list">
+                    <div class="insight-item">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        <span>上传文件后自动分析知识结构</span>
+                    </div>
+                    <div class="insight-item">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        <span>识别核心概念及其关联</span>
+                    </div>
+                    <div class="insight-item">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        <span>支持交互式探索</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass-effect">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                    热门话题
+                </div>
+                </div>
+                <div id="topicsList" class="topics-list">
+                    <div class="topic-placeholder">
+                        <p>构建图谱后显示热门话题</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/knowledge_graph.js') }}"></script>
+</body>
+</html>
+EOF

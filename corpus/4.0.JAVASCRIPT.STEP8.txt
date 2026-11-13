@@ -1,0 +1,614 @@
+cat > static/js/main.js << 'EOF'
+/* ============================================
+   灿灿AI - 通用JavaScript功能
+   ============================================ */
+
+// === 全局变量 ===
+const API_BASE = '';
+let currentUser = {
+    name: '学习者',
+    avatar: '👤'
+};
+
+// === 工具函数 ===
+class Utils {
+    // 显示Toast通知
+    static showToast(message, type = 'info', duration = 3000) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        const icon = {
+            success: '✓',
+            error: '✕',
+            info: 'ℹ',
+            warning: '⚠'
+        }[type] || 'ℹ';
+        
+        toast.innerHTML = `
+            <div style="font-size: 1.5rem;">${icon}</div>
+            <div style="flex: 1;">${message}</div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'slideOutRight 0.3s ease-out';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+    
+    // 格式化文件大小
+    static formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    }
+    
+    // 格式化时间
+    static formatTime(date) {
+        const now = new Date();
+        const diff = now - new Date(date);
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        
+        if (days > 0) return `${days}天前`;
+        if (hours > 0) return `${hours}小时前`;
+        if (minutes > 0) return `${minutes}分钟前`;
+        return '刚刚';
+    }
+    
+    // 防抖函数
+    static debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    // 节流函数
+    static throttle(func, limit) {
+        let inThrottle;
+        return function(...args) {
+            if (!inThrottle) {
+                func.apply(this, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    }
+    
+    // 复制到剪贴板
+    static copyToClipboard(text) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text)
+                .then(() => this.showToast('已复制到剪贴板', 'success'))
+                .catch(() => this.showToast('复制失败', 'error'));
+        } else {
+            // 降级方案
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                this.showToast('已复制到剪贴板', 'success');
+            } catch (err) {
+                this.showToast('复制失败', 'error');
+            }
+            document.body.removeChild(textarea);
+        }
+    }
+    
+    // 下载文件
+    static downloadFile(content, filename, type = 'text/plain') {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+    
+    // API请求封装
+    static async fetchAPI(endpoint, options = {}) {
+        try {
+            const response = await fetch(API_BASE + endpoint, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('API Error:', error);
+            this.showToast('网络请求失败', 'error');
+            throw error;
+        }
+    }
+}
+
+// === 导航栏功能 ===
+class Navigation {
+    constructor() {
+        this.navbar = document.querySelector('.navbar');
+        this.init();
+    }
+    
+    init() {
+        if (!this.navbar) return;
+        
+        // 滚动效果
+        window.addEventListener('scroll', Utils.throttle(() => {
+            if (window.scrollY > 50) {
+                this.navbar.classList.add('scrolled');
+            } else {
+                this.navbar.classList.remove('scrolled');
+            }
+        }, 100));
+        
+        // 高亮当前页面
+        this.highlightCurrentPage();
+        
+        // 移动端菜单（如果需要）
+        this.initMobileMenu();
+    }
+    
+    highlightCurrentPage() {
+        const currentPath = window.location.pathname;
+        const links = this.navbar.querySelectorAll('.nav-link');
+        
+        links.forEach(link => {
+            const href = link.getAttribute('href');
+            if (href === currentPath || (currentPath === '/' && href === '/')) {
+                link.classList.add('active');
+            }
+        });
+    }
+    
+    initMobileMenu() {
+        // 移动端汉堡菜单逻辑
+        // 可根据需要扩展
+    }
+}
+
+// === Modal管理 ===
+class ModalManager {
+    static open(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+    
+    static close(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+    
+    static init() {
+        // 点击背景关闭Modal
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                this.close(e.target.id);
+            }
+        });
+        
+        // ESC键关闭Modal
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const activeModal = document.querySelector('.modal.active');
+                if (activeModal) {
+                    this.close(activeModal.id);
+                }
+            }
+        });
+    }
+}
+
+// === 加载动画 ===
+class LoadingManager {
+    static show(element, text = '加载中...') {
+        if (!element) return;
+        
+        const loader = document.createElement('div');
+        loader.className = 'loading-overlay';
+        loader.innerHTML = `
+            <div class="loading-content">
+                <div class="loading"></div>
+                <p style="margin-top: 16px; color: var(--gray-600);">${text}</p>
+            </div>
+        `;
+        
+        element.style.position = 'relative';
+        element.appendChild(loader);
+    }
+    
+    static hide(element) {
+        if (!element) return;
+        const loader = element.querySelector('.loading-overlay');
+        if (loader) {
+            loader.remove();
+        }
+    }
+}
+
+// === 语音功能 ===
+class VoiceManager {
+    constructor() {
+        this.recognition = null;
+        this.synthesis = window.speechSynthesis;
+        this.isListening = false;
+        this.isSpeaking = false;
+        
+        this.initRecognition();
+    }
+    
+    initRecognition() {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognition = new SpeechRecognition();
+            this.recognition.lang = 'zh-CN';
+            this.recognition.continuous = false;
+            this.recognition.interimResults = false;
+        }
+    }
+    
+    startListening(callback) {
+        if (!this.recognition) {
+            Utils.showToast('您的浏览器不支持语音识别', 'warning');
+            return;
+        }
+        
+        if (this.isListening) return;
+        
+        this.isListening = true;
+        
+        this.recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            callback(transcript);
+        };
+        
+        this.recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            this.isListening = false;
+            Utils.showToast('语音识别失败', 'error');
+        };
+        
+        this.recognition.onend = () => {
+            this.isListening = false;
+        };
+        
+        this.recognition.start();
+        Utils.showToast('正在听...', 'info');
+    }
+    
+    speak(text, lang = 'zh-CN') {
+        if (this.isSpeaking) {
+            this.synthesis.cancel();
+        }
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        
+        utterance.onstart = () => {
+            this.isSpeaking = true;
+        };
+        
+        utterance.onend = () => {
+            this.isSpeaking = false;
+        };
+        
+        utterance.onerror = (event) => {
+            console.error('Speech synthesis error:', event.error);
+            this.isSpeaking = false;
+        };
+        
+        this.synthesis.speak(utterance);
+    }
+    
+    stopSpeaking() {
+        if (this.synthesis.speaking) {
+            this.synthesis.cancel();
+            this.isSpeaking = false;
+        }
+    }
+}
+
+// === 文件处理 ===
+class FileHandler {
+    static validateFile(file) {
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        
+        if (!allowedTypes.includes(file.type)) {
+            Utils.showToast('不支持的文件格式', 'error');
+            return false;
+        }
+        
+        if (file.size > maxSize) {
+            Utils.showToast('文件大小超过10MB', 'error');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    static getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const icons = {
+            pdf: '📄',
+            docx: '📘',
+            doc: '📘',
+            txt: '📝'
+        };
+        return icons[ext] || '📄';
+    }
+    
+    static async uploadFiles(files) {
+        const formData = new FormData();
+        files.forEach(file => {
+            formData.append('files', file);
+        });
+        
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                Utils.showToast('文件上传成功', 'success');
+                return data;
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            Utils.showToast('文件上传失败', 'error');
+            throw error;
+        }
+    }
+}
+
+// === 本地存储管理 ===
+class StorageManager {
+    static set(key, value) {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch (error) {
+            console.error('Storage error:', error);
+        }
+    }
+    
+    static get(key, defaultValue = null) {
+        try {
+            const item = localStorage.getItem(key);
+            return item ? JSON.parse(item) : defaultValue;
+        } catch (error) {
+            console.error('Storage error:', error);
+            return defaultValue;
+        }
+    }
+    
+    static remove(key) {
+        try {
+            localStorage.removeItem(key);
+        } catch (error) {
+            console.error('Storage error:', error);
+        }
+    }
+    
+    static clear() {
+        try {
+            localStorage.clear();
+        } catch (error) {
+            console.error('Storage error:', error);
+        }
+    }
+}
+
+// === 主题管理 ===
+class ThemeManager {
+    constructor() {
+        this.currentTheme = StorageManager.get('theme', 'light');
+        this.apply();
+    }
+    
+    toggle() {
+        this.currentTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+        this.apply();
+        StorageManager.set('theme', this.currentTheme);
+    }
+    
+    apply() {
+        document.documentElement.setAttribute('data-theme', this.currentTheme);
+    }
+}
+
+// === 统计追踪 ===
+class Analytics {
+    static trackPageView(page) {
+        console.log('Page view:', page);
+        // 可集成Google Analytics等
+    }
+    
+    static trackEvent(category, action, label) {
+        console.log('Event:', { category, action, label });
+        // 可集成事件追踪
+    }
+    
+    static trackFileUpload(filename, size) {
+        this.trackEvent('File', 'Upload', `${filename} (${Utils.formatFileSize(size)})`);
+    }
+    
+    static trackQuestion(question) {
+        this.trackEvent('Chat', 'Question', question.substring(0, 50));
+    }
+}
+
+// === 动画效果 ===
+class AnimationManager {
+    static observeElements() {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animation = 'fadeInUp 0.6s ease-out forwards';
+                }
+            });
+        }, {
+            threshold: 0.1
+        });
+        
+        document.querySelectorAll('.card, .feature-btn, .stat-card').forEach(el => {
+            observer.observe(el);
+        });
+    }
+    
+    static addRippleEffect(element) {
+        element.addEventListener('click', function(e) {
+            const ripple = document.createElement('span');
+            const rect = this.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+            
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+            ripple.className = 'ripple';
+            
+            this.appendChild(ripple);
+            
+            setTimeout(() => ripple.remove(), 600);
+        });
+    }
+}
+
+// === 性能监控 ===
+class PerformanceMonitor {
+    static logPerformance() {
+        if (window.performance) {
+            const perfData = window.performance.timing;
+            const pageLoadTime = perfData.loadEventEnd - perfData.navigationStart;
+            console.log('Page load time:', pageLoadTime + 'ms');
+        }
+    }
+}
+
+// === 初始化 ===
+document.addEventListener('DOMContentLoaded', () => {
+    // 初始化导航栏
+    new Navigation();
+    
+    // 初始化Modal
+    ModalManager.init();
+    
+    // 初始化主题
+    new ThemeManager();
+    
+    // 观察动画元素
+    AnimationManager.observeElements();
+    
+    // 添加波纹效果
+    document.querySelectorAll('.btn, .feature-btn').forEach(btn => {
+        AnimationManager.addRippleEffect(btn);
+    });
+    
+    // 性能监控
+    window.addEventListener('load', () => {
+        PerformanceMonitor.logPerformance();
+    });
+    
+    // 页面追踪
+    Analytics.trackPageView(window.location.pathname);
+});
+
+// === CSS动画补充 ===
+const style = document.createElement('style');
+style.textContent = `
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(5px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        animation: fadeIn 0.3s ease-out;
+    }
+    
+    .loading-content {
+        text-align: center;
+    }
+    
+    .ripple {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.6);
+        transform: scale(0);
+        animation: rippleAnimation 0.6s ease-out;
+        pointer-events: none;
+    }
+    
+    @keyframes rippleAnimation {
+        to {
+            transform: scale(4);
+            opacity: 0;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        to {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// 导出全局对象
+window.CcanAI = {
+    Utils,
+    Navigation,
+    ModalManager,
+    LoadingManager,
+    VoiceManager,
+    FileHandler,
+    StorageManager,
+    ThemeManager,
+    Analytics,
+    AnimationManager
+};
+EOF

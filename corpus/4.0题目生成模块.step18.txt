@@ -1,0 +1,253 @@
+cat > modules/question_generator.py << 'EOF'
+"""
+============================================
+题目生成器模块
+基于文档内容生成测试题目
+============================================
+"""
+
+import random
+import re
+from typing import List, Dict, Optional
+import logging
+import jieba
+
+logger = logging.getLogger(__name__)
+
+
+class QuestionGenerator:
+    """题目生成器"""
+    
+    def __init__(self, llm_client):
+        """
+        初始化
+        
+        Args:
+            llm_client: LLM客户端
+        """
+        self.llm_client = llm_client
+    
+    def generate_questions(self, content: str, count: int = 5,
+                          difficulty: str = "medium",
+                          question_type: str = "mixed") -> List[Dict]:
+        """
+        生成题目
+        
+        Args:
+            content: 文档内容
+            count: 题目数量
+            difficulty: 难度级别
+            question_type: 题目类型 (multiple_choice, true_false, short_answer, mixed)
+            
+        Returns:
+            题目列表
+        """
+        try:
+            logger.info(f"生成 {count} 道 {difficulty} 难度的题目...")
+            
+            questions = []
+            
+            if question_type == "mixed":
+                # 混合类型
+                types = ['multiple_choice', 'true_false', 'short_answer']
+                for i in range(count):
+                    q_type = types[i % len(types)]
+                    question = self._generate_single_question(content, q_type, difficulty)
+                    if question:
+                        questions.append(question)
+            else:
+                # 单一类型
+                for _ in range(count):
+                    question = self._generate_single_question(content, question_type, difficulty)
+                    if question:
+                        questions.append(question)
+            
+            logger.info(f"成功生成 {len(questions)} 道题目")
+            return questions
+            
+        except Exception as e:
+            logger.error(f"生成题目失败: {e}")
+            return self._generate_fallback_questions(content, count)
+    
+    def _generate_single_question(self, content: str, q_type: str, 
+                                  difficulty: str) -> Optional[Dict]:
+        """生成单个题目"""
+        if q_type == "multiple_choice":
+            return self._generate_multiple_choice(content, difficulty)
+        elif q_type == "true_false":
+            return self._generate_true_false(content, difficulty)
+        elif q_type == "short_answer":
+            return self._generate_short_answer(content, difficulty)
+        return None
+    
+    def _generate_multiple_choice(self, content: str, difficulty: str) -> Dict:
+        """生成选择题"""
+        # 提取关键句子
+        sentences = [s.strip() for s in re.split(r'[。！？]', content) if len(s.strip()) > 20]
+        
+        if not sentences:
+            return None
+        
+        # 随机选择一个句子作为题目基础
+        base_sentence = random.choice(sentences[:min(10, len(sentences))])
+        
+        # 使用LLM生成题目（如果可用）
+        if self.llm_client.model_type != "mock":
+            prompt = f"""基于以下内容生成一道选择题：
+
+内容：{base_sentence}
+
+要求：
+- 难度：{difficulty}
+- 包含4个选项（A/B/C/D）
+- 只有一个正确答案
+- 提供简短解析
+
+请以JSON格式返回：
+{{
+    "question": "题目",
+    "options": ["选项A", "选项B", "选项C", "选项D"],
+    "answer": 0,
+    "explanation": "解析"
+}}"""
+            
+            response = self.llm_client.generate_answer(prompt, "", "zh-CN", "professional", "medium")
+            
+            try:
+                import json
+                question_data = json.loads(response)
+                question_data['type'] = 'multiple_choice'
+                question_data['difficulty'] = difficulty
+                return question_data
+            except:
+                pass
+        
+        # Fallback: 生成简单题目
+        keywords = self._extract_key_terms(base_sentence)
+        
+        if not keywords:
+            return None
+        
+        keyword = random.choice(keywords)
+        
+        question = {
+            'type': 'multiple_choice',
+            'question': f"关于'{keyword}'，以下说法正确的是？",
+            'options': [
+                base_sentence[:50] + "...",
+                "这是一个干扰选项",
+                "这也是一个干扰选项",
+                "这还是一个干扰选项"
+            ],
+            'answer': 0,
+            'difficulty': difficulty,
+            'explanation': f"根据文档内容：{base_sentence[:100]}..."
+        }
+        
+        # 打乱选项
+        correct_option = question['options'][0]
+        random.shuffle(question['options'])
+        question['answer'] = question['options'].index(correct_option)
+        
+        return question
+    
+    def _generate_true_false(self, content: str, difficulty: str) -> Dict:
+        """生成判断题"""
+        sentences = [s.strip() for s in re.split(r'[。！？]', content) if len(s.strip()) > 15]
+        
+        if not sentences:
+            return None
+        
+        base_sentence = random.choice(sentences[:min(10, len(sentences))])
+        
+        # 随机决定是对还是错
+        is_correct = random.choice([True, False])
+        
+        if is_correct:
+            question_text = base_sentence
+            answer = "true"
+            explanation = "这个陈述与文档内容一致。"
+        else:
+            # 修改句子使其错误
+            modified = self._modify_sentence(base_sentence)
+            question_text = modified
+            answer = "false"
+            explanation = f"正确的说法应该是：{base_sentence[:50]}..."
+        
+        return {
+            'type': 'true_false',
+            'question': question_text,
+            'answer': answer,
+            'difficulty': difficulty,
+            'explanation': explanation
+        }
+    
+    def _generate_short_answer(self, content: str, difficulty: str) -> Dict:
+        """生成简答题"""
+        sentences = [s.strip() for s in re.split(r'[。！？]', content) if len(s.strip()) > 20]
+        
+        if not sentences:
+            return None
+        
+        base_sentence = random.choice(sentences[:min(10, len(sentences))])
+        keywords = self._extract_key_terms(base_sentence)
+        
+        if not keywords:
+            return None
+        
+        keyword = random.choice(keywords)
+        
+        # 生成问题
+        question_templates = [
+            f"请解释'{keyword}'的含义。",
+            f"什么是'{keyword}'？",
+            f"请简要说明'{keyword}'的作用。",
+            f"请描述'{keyword}'的特点。"
+        ]
+        
+        question_text = random.choice(question_templates)
+        
+        return {
+            'type': 'short_answer',
+            'question': question_text,
+            'answer': base_sentence,
+            'difficulty': difficulty,
+            'explanation': f"参考答案：{base_sentence}"
+        }
+    
+    def _extract_key_terms(self, text: str) -> List[str]:
+        """提取关键词"""
+        import jieba.analyse
+        keywords = jieba.analyse.extract_tags(text, topK=5)
+        return [kw for kw in keywords if len(kw) >= 2]
+    
+    def _modify_sentence(self, sentence: str) -> str:
+        """修改句子使其错误（简单版）"""
+        # 简单的否定处理
+        negations = ['不', '没有', '无', '非']
+        
+        for neg in negations:
+            if neg in sentence:
+                return sentence.replace(neg, '', 1)
+        
+        # 添加否定词
+        return sentence[:10] + "不" + sentence[10:]
+    
+    def _generate_fallback_questions(self, content: str, count: int) -> List[Dict]:
+        """生成备用题目（当主要方法失败时）"""
+        questions = []
+        
+        sentences = [s.strip() for s in re.split(r'[。！？]', content) if len(s.strip()) > 15]
+        
+        for i in range(min(count, len(sentences))):
+            question = {
+                'type': 'short_answer',
+                'question': f"请简要说明文档中提到的第 {i+1} 个要点。",
+                'answer': sentences[i] if i < len(sentences) else "请参考文档内容。",
+                'difficulty': 'medium',
+                'explanation': "请根据文档内容作答。"
+            }
+            questions.append(question)
+        
+        return questions
+EOF

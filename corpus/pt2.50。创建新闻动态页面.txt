@@ -1,0 +1,165 @@
+cat > templates/news.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新闻动态 - 灿灿AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">✨</span>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/team" class="nav-link">👥 团队</a>
+                <a href="/milestones" class="nav-link">📅 历程</a>
+                <a href="/news" class="nav-link active">📰 动态</a>
+                <a href="/contact" class="nav-link">📞 联系</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <div class="team-hero">
+        <h1 style="font-size: 3em; margin-bottom: 20px;">📰 新闻动态</h1>
+        <p style="font-size: 1.3em; opacity: 0.9;">了解灿灿AI的最新进展与重要事件</p>
+    </div>
+
+    <!-- News Content -->
+    <div class="container">
+        <!-- Latest News -->
+        <div class="card" style="margin-top: 40px; background: linear-gradient(135deg, rgba(0, 47, 167, 0.05), rgba(0, 217, 255, 0.05)); border: 2px solid var(--klein-blue-light);">
+            <div style="text-align: center; padding: 20px;">
+                <span style="background: var(--klein-blue); color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 600;">
+                    🔥 最新动态
+                </span>
+                <h2 style="color: var(--klein-blue); margin: 20px 0 10px; font-size: 2em;">
+                    {{ news[0].title }}
+                </h2>
+                <p style="color: var(--text-secondary); margin-bottom: 15px;">📅 {{ news[0].date }}</p>
+                <p style="font-size: 1.1em; line-height: 1.8; color: var(--text-primary);">
+                    {{ news[0].content }}
+                </p>
+            </div>
+        </div>
+
+        <!-- News List -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">📋</span>
+                    历史动态
+                </div>
+            </div>
+            
+            <div style="display: grid; gap: 20px;">
+                {% for item in news[1:] %}
+                <div style="padding: 25px; background: var(--bg-secondary); border-radius: 12px; border-left: 4px solid var(--klein-blue); transition: all 0.3s;" 
+                     onmouseover="this.style.transform='translateX(5px)'; this.style.boxShadow='0 4px 15px rgba(0,47,167,0.1)'"
+                     onmouseout="this.style.transform='translateX(0)'; this.style.boxShadow='none'">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                        <h3 style="color: var(--klein-blue); font-size: 1.3em; flex: 1;">
+                            {{ item.title }}
+                        </h3>
+                        <span style="background: white; padding: 6px 12px; border-radius: 8px; font-size: 0.85em; color: var(--text-secondary); white-space: nowrap; margin-left: 15px;">
+                            📅 {{ item.date }}
+                        </span>
+                    </div>
+                    <p style="color: var(--text-primary); line-height: 1.8;">
+                        {{ item.content }}
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Media Coverage -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">📺</span>
+                    媒体关注
+                </div>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🎓</span>
+                    <div class="feature-btn-title">教育科技周刊</div>
+                    <div class="feature-btn-desc">"灿灿AI：东盟教育数字化的创新实践"</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🌏</span>
+                    <div class="feature-btn-title">东盟科技观察</div>
+                    <div class="feature-btn-desc">"本地化RAG技术在跨文化教育中的应用"</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🤖</span>
+                    <div class="feature-btn-title">AI前沿</div>
+                    <div class="feature-btn-desc">"多语种AI助手：突破语言障碍的教育创新"</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">💡</span>
+                    <div class="feature-btn-title">创新创业报道</div>
+                    <div class="feature-btn-desc">"大学生团队打造智能教育平台"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Awards & Recognition -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🏆</span>
+                    荣誉认可
+                </div>
+            </div>
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-number">🥇</div>
+                    <div class="stat-label">AI东盟大赛入围</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">⭐</div>
+                    <div class="stat-label">95%用户好评</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">🎯</div>
+                    <div class="stat-label">教育创新奖</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">🌟</div>
+                    <div class="stat-label">技术突破奖</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subscribe -->
+        <div class="card" style="background: linear-gradient(135deg, var(--klein-blue), var(--klein-blue-light)); color: white; text-align: center; padding: 60px 40px;">
+            <h2 style="font-size: 2.5em; margin-bottom: 20px;">📬 订阅最新动态</h2>
+            <p style="font-size: 1.2em; margin-bottom: 40px; opacity: 0.9;">
+                第一时间获取灿灿AI的最新资讯和功能更新
+            </p>
+            <div style="max-width: 500px; margin: 0 auto; display: flex; gap: 10px;">
+                <input type="email" placeholder="输入您的邮箱地址" 
+                       style="flex: 1; padding: 16px 20px; border: none; border-radius: 12px; font-size: 1em;">
+                <button class="btn-hero btn-primary" style="white-space: nowrap;">
+                    订阅 📧
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+ENDOFFILE

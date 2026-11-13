@@ -1,0 +1,248 @@
+cat > templates/team.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>团队介绍 - 灿灿AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">✨</span>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/team" class="nav-link active">👥 团队</a>
+                <a href="/milestones" class="nav-link">📅 历程</a>
+                <a href="/news" class="nav-link">📰 动态</a>
+                <a href="/contact" class="nav-link">📞 联系</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Team Hero -->
+    <div class="team-hero">
+        <h1 style="font-size: 3em; margin-bottom: 20px;">👥 我们的团队</h1>
+        <p style="font-size: 1.3em; opacity: 0.9;">致力于打造东盟地区领先的教育AI平台</p>
+    </div>
+
+    <!-- Team Content -->
+    <div class="container">
+        <!-- Vision & Mission -->
+        <div class="card" style="margin-top: 40px;">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🎯</span>
+                    项目愿景
+                </div>
+            </div>
+            <div style="line-height: 1.8; font-size: 1.1em;">
+                <p style="margin-bottom: 20px; font-weight: 600; color: var(--klein-blue); font-size: 1.2em;">
+                    我们是一支充满激情的AI教育团队
+                </p>
+                <div style="white-space: pre-line; color: var(--text-primary);">
+专注于多语种教育智能化解决方案，运用先进的RAG技术和大语言模型，为东盟地区提供优质的智能教育服务。
+
+我们的使命是打破语言和地域的界限，让每个学习者都能享受到个性化、高效的学习体验。通过持续的技术创新和深度的教育理解，我们致力于成为推动教育变革的重要力量。
+                </div>
+            </div>
+        </div>
+
+        <!-- Team Leader -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">👑</span>
+                    团队负责人
+                </div>
+            </div>
+            <div style="text-align: center; padding: 40px;">
+                <div class="member-avatar" style="width: 120px; height: 120px; font-size: 3em; margin: 0 auto 20px;">
+                    👨‍💼
+                </div>
+                <h2 style="color: var(--klein-blue); margin-bottom: 10px; font-size: 2em;">
+                    唐冠球
+                </h2>
+                <p style="color: var(--text-secondary); font-size: 1.2em; margin-bottom: 20px;">
+                    项目负责人 & 技术总监
+                </p>
+                <div style="display: inline-flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+                    <div style="background: var(--bg-secondary); padding: 12px 24px; border-radius: 10px;">
+                        📱 13237916779
+                    </div>
+                    <div style="background: var(--bg-secondary); padding: 12px 24px; border-radius: 10px;">
+                        📧 contact@cancanai.com
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team Members -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🌟</span>
+                    核心成员
+                </div>
+            </div>
+            <div class="team-members">
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">李继欢</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">刘婷婷</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">谢明容</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">胡铭芮</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">林子涵</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">孟子朝</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">陆孝然</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">冯睿洋</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">崔畅</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">胡其锴</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">刘俞辰</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+                <div class="member-card">
+                    <div class="member-avatar">👤</div>
+                    <div class="member-name">刘栩君</div>
+                    <div class="member-role">核心成员</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team Stats -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">📊</span>
+                    团队数据
+                </div>
+            </div>
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-number">13</div>
+                    <div class="stat-label">团队成员</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">10</div>
+                    <div class="stat-label">支持语言</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">100+</div>
+                    <div class="stat-label">测试样本</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">95%</div>
+                    <div class="stat-label">准确率</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Core Advantages -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">💎</span>
+                    核心优势
+                </div>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🌍</span>
+                    <div class="feature-btn-title">多语种支持</div>
+                    <div class="feature-btn-desc">覆盖东盟10国语言，实现无障碍跨文化交流</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🔒</span>
+                    <div class="feature-btn-title">本地化部署</div>
+                    <div class="feature-btn-desc">数据安全可控，保护用户隐私</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🎓</span>
+                    <div class="feature-btn-title">教育专业化</div>
+                    <div class="feature-btn-desc">专注教育场景，深度理解教学需求</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">⚡</span>
+                    <div class="feature-btn-title">高效智能</div>
+                    <div class="feature-btn-desc">RAG技术加持，快速精准响应</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🔄</span>
+                    <div class="feature-btn-title">持续进化</div>
+                    <div class="feature-btn-desc">不断学习优化，适应多样化需求</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🤝</span>
+                    <div class="feature-btn-title">开放协作</div>
+                    <div class="feature-btn-desc">支持多场景应用，易于集成扩展</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Call to Action -->
+        <div class="card" style="background: linear-gradient(135deg, var(--klein-blue), var(--klein-blue-light)); color: white; text-align: center; padding: 60px 40px;">
+            <h2 style="font-size: 2.5em; margin-bottom: 20px;">加入我们，共创未来</h2>
+            <p style="font-size: 1.2em; margin-bottom: 40px; opacity: 0.9;">
+                如果您对教育AI感兴趣，欢迎与我们联系交流
+            </p>
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <a href="/contact" class="btn-hero btn-primary">📞 联系我们</a>
+                <a href="/" class="btn-hero btn-secondary">🚀 体验产品</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+ENDOFFILE

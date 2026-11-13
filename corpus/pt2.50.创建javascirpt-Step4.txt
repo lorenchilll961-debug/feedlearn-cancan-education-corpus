@@ -1,0 +1,360 @@
+cat > static/js/main.js << 'ENDOFFILE'
+let selectedFile = null;
+let lastAnswer = '';
+
+// Upload handling
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+const uploadBtn = document.getElementById('uploadBtn');
+const uploadStatus = document.getElementById('uploadStatus');
+
+if (uploadZone) {
+    uploadZone.onclick = () => fileInput.click();
+    
+    fileInput.onchange = (e) => {
+        selectedFile = e.target.files[0];
+        if (selectedFile) {
+            uploadStatus.innerHTML = `<span style="color: var(--klein-blue); font-weight: 600;">✅ 已选择: ${selectedFile.name}</span>`;
+            uploadBtn.disabled = false;
+        }
+    };
+    
+    uploadBtn.onclick = async () => {
+        if (!selectedFile) return;
+        
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<span class="loading"></span> 灿灿正在处理...';
+        uploadStatus.innerHTML = '⏳ 正在提取知识点，请稍候...';
+        
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showNotification(`✅ ${result.message}`, 'success');
+                uploadStatus.innerHTML = `
+                    <div style="color: var(--success); font-weight: 600;">✅ 上传成功！</div>
+                    <div style="font-size: 0.9em; margin-top: 5px;">
+                        📊 难度: ${result.difficulty} | 
+                        🔑 关键词: ${result.keywords.slice(0, 3).join(', ')}
+                    </div>
+                `;
+                document.getElementById('questionInput').disabled = false;
+                document.getElementById('askBtn').disabled = false;
+                updateStats();
+                selectedFile = null;
+                fileInput.value = '';
+            } else {
+                showNotification(`❌ ${result.message}`, 'error');
+                uploadStatus.innerHTML = `<span style="color: var(--error);">❌ ${result.message}</span>`;
+            }
+        } catch (error) {
+            showNotification('❌ 上传失败: ' + error.message, 'error');
+            uploadStatus.innerHTML = '<span style="color: var(--error);">❌ 上传失败</span>';
+        }
+        
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '开始上传';
+    };
+}
+
+// Chat handling
+const questionInput = document.getElementById('questionInput');
+const askBtn = document.getElementById('askBtn');
+const chatContainer = document.getElementById('chatContainer');
+
+if (askBtn) {
+    askBtn.onclick = async () => {
+        const question = questionInput.value.trim();
+        if (!question) return;
+        
+        const style = document.getElementById('styleSelect').value;
+        const language = document.getElementById('languageSelect').value;
+        
+        addMessage(question, 'user');
+        questionInput.value = '';
+        
+        askBtn.disabled = true;
+        askBtn.innerHTML = '<span class="loading"></span>';
+        
+        const startTime = Date.now();
+        
+        try {
+            const response = await fetch('/ask', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({question, style, language})
+            });
+            
+            const result = await response.json();
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            
+            if (result.success) {
+                lastAnswer = result.answer;
+                addMessage(result.answer + `\n\n⚡ 响应时间: ${elapsed}秒`, 'ai');
+                updateStats();
+            } else {
+                addMessage(result.message, 'ai');
+            }
+        } catch (error) {
+            addMessage('抱歉，灿灿遇到了问题: ' + error.message, 'ai');
+        }
+        
+        askBtn.disabled = false;
+        askBtn.innerHTML = '📤';
+    };
+    
+    questionInput.onkeypress = (e) => {
+        if (e.key === 'Enter') askBtn.click();
+    };
+}
+
+function addMessage(text, sender) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}`;
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = sender === 'user' ? '👤' : '✨';
+    
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    content.innerHTML = sender === 'user' 
+        ? `<strong>您</strong><p>${text}</p>`
+        : `<strong>灿灿</strong><p>${text}</p>`;
+    
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(content);
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+// Feature functions
+async function generateQuiz() {
+    showModal('📝 正在生成试题...', '灿灿正在为您智能出题，请稍候...');
+    
+    try {
+        const response = await fetch('/generate_quiz', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({num_questions: 5})
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showModal('📝 智能出题结果', result.quiz);
+        } else {
+            showModal('❌ 出题失败', result.message);
+        }
+    } catch (error) {
+        showModal('❌ 错误', '生成试题失败: ' + error.message);
+    }
+}
+
+async function generateOutline() {
+    showModal('📋 正在生成教学大纲...', '灿灿正在分析内容结构...');
+    
+    try {
+        const response = await fetch('/generate_outline', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showModal('📋 教学大纲', result.outline);
+        } else {
+            showModal('❌ 生成失败', result.message);
+        }
+    } catch (error) {
+        showModal('❌ 错误', '生成大纲失败: ' + error.message);
+    }
+}
+
+async function generatePath() {
+    showModal('🗺️ 正在规划学习路径...', '灿灿正在为您设计最优学习路径...');
+    
+    try {
+        const response = await fetch('/generate_path', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showModal('🗺️ 学习路径规划', result.path);
+        } else {
+            showModal('❌ 规划失败', result.message);
+        }
+    } catch (error) {
+        showModal('❌ 错误', '生成路径失败: ' + error.message);
+    }
+}
+
+async function extractKeywords() {
+    showModal('🔑 正在提取关键知识点...', '灿灿正在分析核心概念...');
+    
+    try {
+        const response = await fetch('/extract_keywords', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const keywordsList = result.keywords
+                .map(kw => `• ${kw.word} (出现${kw.freq}次)`)
+                .join('\n');
+            showModal('🔑 关键知识点', keywordsList);
+        } else {
+            showModal('❌ 提取失败', result.message);
+        }
+    } catch (error) {
+        showModal('❌ 错误', '提取失败: ' + error.message);
+    }
+}
+
+async function generateSummary() {
+    showModal('📄 正在生成摘要...', '灿灿正在提炼核心内容...');
+    
+    try {
+        const response = await fetch('/generate_summary', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showModal('📄 智能摘要', result.summary);
+        } else {
+            showModal('❌ 生成失败', result.message);
+        }
+    } catch (error) {
+        showModal('❌ 错误', '生成摘要失败: ' + error.message);
+    }
+}
+
+async function compareDocuments() {
+    showModal('⚖️ 正在对比文档...', '灿灿正在分析文档差异...');
+    
+    try {
+        const response = await fetch('/compare_docs', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showModal('⚖️ 文档对比分析', result.comparison);
+        } else {
+            showModal('❌ 对比失败', result.message);
+        }
+    } catch (error) {
+        showModal('❌ 错误', '对比失败: ' + error.message);
+    }
+}
+
+async function exportHistory() {
+    try {
+        const response = await fetch('/export_history');
+        const result = await response.json();
+        
+        if (result.success) {
+            const dataStr = JSON.stringify(result.history, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `cancan_history_${new Date().getTime()}.json`;
+            link.click();
+            showNotification('✅ 对话历史已导出！', 'success');
+        } else {
+            showNotification('❌ ' + result.message, 'error');
+        }
+    } catch (error) {
+        showNotification('❌ 导出失败', 'error');
+    }
+}
+
+function readLastAnswer() {
+    if (!lastAnswer) {
+        showNotification('⚠️ 暂无答案可朗读', 'warning');
+        return;
+    }
+    
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(lastAnswer);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 0.9;
+        speechSynthesis.speak(utterance);
+        showNotification('🔊 正在朗读...', 'success');
+    } else {
+        showNotification('❌ 您的浏览器不支持语音功能', 'error');
+    }
+}
+
+// Modal functions
+function showModal(title, body) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').textContent = body;
+    document.getElementById('resultModal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('resultModal').style.display = 'none';
+}
+
+// Utility functions
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.remove(), 4000);
+}
+
+async function updateStats() {
+    try {
+        const response = await fetch('/stats');
+        const stats = await response.json();
+        if (document.getElementById('docCount')) {
+            document.getElementById('docCount').textContent = stats.total_documents;
+            document.getElementById('fileCount').textContent = stats.total_files;
+            document.getElementById('chatCount').textContent = stats.chat_count;
+        }
+    } catch (error) {
+        console.error('获取统计信息失败:', error);
+    }
+}
+
+function scrollToUpload() {
+    document.getElementById('uploadCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Close modal on outside click
+if (document.getElementById('resultModal')) {
+    document.getElementById('resultModal').onclick = (e) => {
+        if (e.target.id === 'resultModal') closeModal();
+    };
+}
+
+// Initialize
+if (document.getElementById('docCount')) {
+    updateStats();
+    setInterval(updateStats, 30000); // 每30秒更新一次
+}
+ENDOFFILE

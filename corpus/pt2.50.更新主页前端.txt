@@ -1,0 +1,219 @@
+cat > templates/index.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>灿灿AI - FeedLearn 智能教育知识库</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">✨</span>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link active">🏠 首页</a>
+                <a href="/team" class="nav-link">👥 团队</a>
+                <a href="/milestones" class="nav-link">📅 历程</a>
+                <a href="/news" class="nav-link">📰 动态</a>
+                <a href="/contact" class="nav-link">📞 联系</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">🌏 AI东盟教育创新大赛作品</div>
+            <h1>你好，我是 <span class="hero-name">灿灿</span></h1>
+            <p>基于大语言模型的智能教育知识库系统<br>支持东盟10国语言 · 专业教学辅助 · AI驱动创新</p>
+            <div class="hero-buttons">
+                <button class="btn-hero btn-primary" onclick="scrollToUpload()">🚀 开始使用</button>
+                <button class="btn-hero btn-secondary" onclick="location.href='/team'">👥 了解团队</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Settings Panel -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">⚙️</span>
+                    灿灿设置
+                </div>
+            </div>
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label>🎭 回答风格</label>
+                    <select id="styleSelect">
+                        <option value="simple" selected>通俗易懂</option>
+                        <option value="professional">专业学术</option>
+                        <option value="inspiring">启发式</option>
+                        <option value="concise">简明扼要</option>
+                        <option value="detailed">详细深入</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>🌍 回答语言</label>
+                    <select id="languageSelect">
+                        <option value="zh">中文 (Chinese)</option>
+                        <option value="en">English (英语)</option>
+                        <option value="vi">Tiếng Việt (越南语)</option>
+                        <option value="th">ภาษาไทย (泰语)</option>
+                        <option value="id">Bahasa Indonesia (印尼语)</option>
+                        <option value="ms">Bahasa Melayu (马来语)</option>
+                        <option value="fil">Filipino (菲律宾语)</option>
+                        <option value="my">မြန်မာဘာသာ (缅甸语)</option>
+                        <option value="lo">ລາວ (老挝语)</option>
+                        <option value="km">ខ្មែរ (高棉语)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Grid Section -->
+        <div class="grid">
+            <!-- Upload Card -->
+            <div class="card" id="uploadCard">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">📚</span>
+                        上传教育资料
+                    </div>
+                </div>
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📁</div>
+                    <p style="font-weight: 600; margin-bottom: 8px;">点击或拖拽文件到这里</p>
+                    <p style="color: var(--text-secondary); font-size: 0.9em;">支持 PDF, DOCX, TXT 格式</p>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
+                </div>
+                <button class="btn btn-blue" id="uploadBtn" disabled style="width: 100%; margin-top: 20px;">
+                    开始上传
+                </button>
+                <div id="uploadStatus" style="margin-top: 15px; text-align: center; color: var(--text-secondary);"></div>
+            </div>
+            
+            <!-- Chat Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">💬</span>
+                        与灿灿对话
+                    </div>
+                    <button class="btn-icon" onclick="exportHistory()" title="导出对话">💾</button>
+                </div>
+                <div class="chat-container" id="chatContainer">
+                    <div class="message ai">
+                        <div class="message-avatar">✨</div>
+                        <div class="message-content">
+                            <strong>灿灿</strong>
+                            <p>你好！我是灿灿，您的AI教育助手。请先上传教育资料，然后就可以向我提问了！我支持东盟10国语言，并能为您提供多种专业服务。</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <input type="text" id="questionInput" placeholder="向灿灿提问..." disabled>
+                    </div>
+                    <button class="btn btn-blue btn-icon" id="askBtn" disabled title="发送问题">
+                        📤
+                    </button>
+                    <button class="btn btn-blue btn-icon" onclick="readLastAnswer()" title="朗读答案">🔊</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Features Grid -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🎯</span>
+                    智能教学工具箱
+                </div>
+            </div>
+            <div class="feature-grid">
+                <button class="feature-btn" onclick="generateQuiz()">
+                    <span class="feature-btn-icon">📝</span>
+                    <div class="feature-btn-title">智能出题</div>
+                    <div class="feature-btn-desc">自动生成选择题、问答题</div>
+                </button>
+                
+                <button class="feature-btn" onclick="generateOutline()">
+                    <span class="feature-btn-icon">📋</span>
+                    <div class="feature-btn-title">教学大纲</div>
+                    <div class="feature-btn-desc">快速生成结构化大纲</div>
+                </button>
+                
+                <button class="feature-btn" onclick="generatePath()">
+                    <span class="feature-btn-icon">🗺️</span>
+                    <div class="feature-btn-title">学习路径</div>
+                    <div class="feature-btn-desc">个性化学习规划建议</div>
+                </button>
+                
+                <button class="feature-btn" onclick="extractKeywords()">
+                    <span class="feature-btn-icon">🔑</span>
+                    <div class="feature-btn-title">关键知识点</div>
+                    <div class="feature-btn-desc">自动提取核心概念</div>
+                </button>
+                
+                <button class="feature-btn" onclick="generateSummary()">
+                    <span class="feature-btn-icon">📄</span>
+                    <div class="feature-btn-title">智能摘要</div>
+                    <div class="feature-btn-desc">快速生成内容摘要</div>
+                </button>
+                
+                <button class="feature-btn" onclick="compareDocuments()">
+                    <span class="feature-btn-icon">⚖️</span>
+                    <div class="feature-btn-title">文档对比</div>
+                    <div class="feature-btn-desc">多文档智能对比分析</div>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Stats Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">📊</span>
+                    知识库统计
+                </div>
+            </div>
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-number" id="docCount">0</div>
+                    <div class="stat-label">知识片段</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="fileCount">0</div>
+                    <div class="stat-label">上传文件</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="chatCount">0</div>
+                    <div class="stat-label">对话次数</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal -->
+    <div class="modal" id="resultModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">结果</div>
+                <span class="close-modal" onclick="closeModal()">×</span>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+ENDOFFILE

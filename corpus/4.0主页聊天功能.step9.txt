@@ -1,0 +1,394 @@
+cat > static/js/main.js << 'EOF'
+/* ============================================
+   灿灿AI - 主页聊天功能
+   ============================================ */
+
+class ChatManager {
+    constructor() {
+        this.uploadedFiles = [];
+        this.chatHistory = [];
+        this.voiceManager = new VoiceManager();
+        this.currentLanguage = 'zh-CN';
+        this.currentStyle = 'professional';
+        this.currentDifficulty = 'medium';
+        
+        this.initElements();
+        this.initEventListeners();
+        this.loadChatHistory();
+    }
+    
+    initElements() {
+        // 上传相关
+        this.uploadZone = document.getElementById('uploadZone');
+        this.fileInput = document.getElementById('fileInput');
+        this.fileList = document.getElementById('fileList');
+        this.uploadBtn = document.getElementById('uploadBtn');
+        
+        // 聊天相关
+        this.chatContainer = document.getElementById('chatContainer');
+        this.messageInput = document.getElementById('messageInput');
+        this.sendBtn = document.getElementById('sendBtn');
+        this.voiceBtn = document.getElementById('voiceBtn');
+        
+        // 控制相关
+        this.languageSelect = document.getElementById('languageSelect');
+        this.styleSelect = document.getElementById('styleSelect');
+        this.difficultySelect = document.getElementById('difficultySelect');
+        
+        // 统计
+        this.fileCount = document.getElementById('fileCount');
+        this.questionCount = document.getElementById('questionCount');
+        this.chunkCount = document.getElementById('chunkCount');
+    }
+    
+    initEventListeners() {
+        // 上传区域事件
+        if (this.uploadZone) {
+            this.uploadZone.addEventListener('click', () => this.fileInput.click());
+            this.uploadZone.addEventListener('dragover', (e) => this.handleDragOver(e));
+            this.uploadZone.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+            this.uploadZone.addEventListener('drop', (e) => this.handleDrop(e));
+        }
+        
+        if (this.fileInput) {
+            this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+        }
+        
+        if (this.uploadBtn) {
+            this.uploadBtn.addEventListener('click', () => this.uploadFiles());
+        }
+        
+        // 聊天事件
+        if (this.sendBtn) {
+            this.sendBtn.addEventListener('click', () => this.sendMessage());
+        }
+        
+        if (this.messageInput) {
+            this.messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+        }
+        
+        if (this.voiceBtn) {
+            this.voiceBtn.addEventListener('click', () => this.startVoiceInput());
+        }
+        
+        // 设置变更
+        if (this.languageSelect) {
+            this.languageSelect.addEventListener('change', (e) => {
+                this.currentLanguage = e.target.value;
+                Utils.showToast('语言已切换', 'success');
+            });
+        }
+        
+        if (this.styleSelect) {
+            this.styleSelect.addEventListener('change', (e) => {
+                this.currentStyle = e.target.value;
+            });
+        }
+        
+        if (this.difficultySelect) {
+            this.difficultySelect.addEventListener('change', (e) => {
+                this.currentDifficulty = e.target.value;
+            });
+        }
+    }
+    
+    // === 文件处理 ===
+    handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.uploadZone.classList.add('dragover');
+    }
+    
+    handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.uploadZone.classList.remove('dragover');
+    }
+    
+    handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.uploadZone.classList.remove('dragover');
+        
+        const files = Array.from(e.dataTransfer.files);
+        this.addFiles(files);
+    }
+    
+    handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        this.addFiles(files);
+    }
+    
+    addFiles(files) {
+        files.forEach(file => {
+            if (FileHandler.validateFile(file)) {
+                this.uploadedFiles.push(file);
+                this.renderFileItem(file);
+            }
+        });
+        
+        this.updateStats();
+    }
+    
+    renderFileItem(file) {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        fileItem.dataset.filename = file.name;
+        
+        fileItem.innerHTML = `
+            <div class="file-icon">${FileHandler.getFileIcon(file.name)}</div>
+            <div class="file-info">
+                <div class="file-name">${file.name}</div>
+                <div class="file-size">${Utils.formatFileSize(file.size)}</div>
+            </div>
+            <button class="file-remove" onclick="chatManager.removeFile('${file.name}')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+            </button>
+        `;
+        
+        this.fileList.appendChild(fileItem);
+    }
+    
+    removeFile(filename) {
+        this.uploadedFiles = this.uploadedFiles.filter(f => f.name !== filename);
+        const fileItem = this.fileList.querySelector(`[data-filename="${filename}"]`);
+        if (fileItem) {
+            fileItem.remove();
+        }
+        this.updateStats();
+    }
+    
+    async uploadFiles() {
+        if (this.uploadedFiles.length === 0) {
+            Utils.showToast('请先选择文件', 'warning');
+            return;
+        }
+        
+        LoadingManager.show(this.uploadZone, '正在上传文件...');
+        this.uploadBtn.disabled = true;
+        
+        try {
+            const data = await FileHandler.uploadFiles(this.uploadedFiles);
+            
+            // 更新统计
+            if (data.chunks) {
+                this.chunkCount.textContent = data.chunks;
+            }
+            
+            Utils.showToast(`成功上传 ${this.uploadedFiles.length} 个文件`, 'success');
+            Analytics.trackFileUpload(this.uploadedFiles[0].name, this.uploadedFiles[0].size);
+            
+            // 清空文件列表
+            this.uploadedFiles = [];
+            this.fileList.innerHTML = '';
+            this.fileInput.value = '';
+            
+            this.updateStats();
+        } catch (error) {
+            console.error('Upload error:', error);
+        } finally {
+            LoadingManager.hide(this.uploadZone);
+            this.uploadBtn.disabled = false;
+        }
+    }
+    
+    // === 聊天功能 ===
+    async sendMessage() {
+        const message = this.messageInput.value.trim();
+        
+        if (!message) {
+            Utils.showToast('请输入问题', 'warning');
+            return;
+        }
+        
+        // 添加用户消息
+        this.addMessage(message, 'user');
+        this.messageInput.value = '';
+        this.sendBtn.disabled = true;
+        
+        // 显示加载中
+        const loadingId = this.addMessage('正在思考...', 'ai', true);
+        
+        try {
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question: message,
+                    language: this.currentLanguage,
+                    style: this.currentStyle,
+                    difficulty: this.currentDifficulty
+                })
+            });
+            
+            const data = await response.json();
+            
+            // 移除加载消息
+            this.removeMessage(loadingId);
+            
+            if (data.status === 'success') {
+                this.addMessage(data.answer, 'ai');
+                
+                // 保存对话历史
+                this.chatHistory.push({
+                    question: message,
+                    answer: data.answer,
+                    timestamp: new Date().toISOString()
+                });
+                this.saveChatHistory();
+                
+                // 更新统计
+                this.questionCount.textContent = parseInt(this.questionCount.textContent) + 1;
+                
+                Analytics.trackQuestion(message);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            this.removeMessage(loadingId);
+            this.addMessage('抱歉，出现了一些问题。请稍后再试。', 'ai');
+            Utils.showToast('发送失败', 'error');
+        } finally {
+            this.sendBtn.disabled = false;
+        }
+    }
+    
+    addMessage(content, type, isLoading = false) {
+        const messageId = 'msg-' + Date.now();
+        const message = document.createElement('div');
+        message.className = `message message-${type}`;
+        message.id = messageId;
+        
+        const avatar = type === 'ai' ? '🤖' : '👤';
+        
+        message.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-content">
+                ${isLoading ? '<div class="loading"></div>' : content}
+                ${!isLoading && type === 'ai' ? `
+                    <div style="margin-top: 12px; display: flex; gap: 8px;">
+                        <button class="btn-icon" onclick="chatManager.copyMessage('${messageId}')" title="复制">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                            </svg>
+                        </button>
+                        <button class="btn-icon" onclick="chatManager.speakMessage('${messageId}')" title="朗读">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                            </svg>
+                        </button>
+                    </div>
+                ` : ''}
+                <div class="message-time">${Utils.formatTime(new Date())}</div>
+            </div>
+        `;
+        
+        // 移除欢迎消息
+        const welcome = this.chatContainer.querySelector('.chat-welcome');
+        if (welcome) {
+            welcome.remove();
+        }
+        
+        this.chatContainer.appendChild(message);
+        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        
+        return messageId;
+    }
+    
+    removeMessage(messageId) {
+        const message = document.getElementById(messageId);
+        if (message) {
+            message.remove();
+        }
+    }
+    
+    copyMessage(messageId) {
+        const message = document.getElementById(messageId);
+        if (message) {
+            const content = message.querySelector('.message-content').textContent.trim();
+            Utils.copyToClipboard(content);
+        }
+    }
+    
+    speakMessage(messageId) {
+        const message = document.getElementById(messageId);
+        if (message) {
+            const content = message.querySelector('.message-content').childNodes[0].textContent.trim();
+            this.voiceManager.speak(content, this.currentLanguage);
+        }
+    }
+    
+    startVoiceInput() {
+        this.voiceManager.startListening((transcript) => {
+            this.messageInput.value = transcript;
+            Utils.showToast('识别完成', 'success');
+        });
+    }
+    
+    // === 数据持久化 ===
+    saveChatHistory() {
+        StorageManager.set('chatHistory', this.chatHistory);
+    }
+    
+    loadChatHistory() {
+        this.chatHistory = StorageManager.get('chatHistory', []);
+        
+        // 可选：重新渲染历史消息
+        // this.chatHistory.forEach(item => {
+        //     this.addMessage(item.question, 'user');
+        //     this.addMessage(item.answer, 'ai');
+        // });
+    }
+    
+    clearHistory() {
+        if (confirm('确定要清空聊天记录吗？')) {
+            this.chatHistory = [];
+            this.chatContainer.innerHTML = `
+                <div class="chat-welcome">
+                    <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor" opacity="0.2">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                    <h3>你好！我是灿灿</h3>
+                    <p>上传文档后，我可以回答任何相关问题</p>
+                </div>
+            `;
+            StorageManager.remove('chatHistory');
+            Utils.showToast('聊天记录已清空', 'success');
+        }
+    }
+    
+    exportHistory() {
+        const content = this.chatHistory.map(item => 
+            `Q: ${item.question}\nA: ${item.answer}\n时间: ${new Date(item.timestamp).toLocaleString()}\n\n`
+        ).join('---\n\n');
+        
+        Utils.downloadFile(content, `chat-history-${Date.now()}.txt`);
+        Utils.showToast('对话记录已导出', 'success');
+    }
+    
+    // === 统计更新 ===
+    updateStats() {
+        if (this.fileCount) {
+            this.fileCount.textContent = this.uploadedFiles.length;
+        }
+    }
+}
+
+// === 初始化 ===
+let chatManager;
+
+document.addEventListener('DOMContentLoaded', () => {
+    chatManager = new ChatManager();
+    
+    // 绑定全局函数
+    window.clearHistory = () => chatManager.clearHistory();
+    window.exportHistory = () => chatManager.exportHistory();
+});
+EOF

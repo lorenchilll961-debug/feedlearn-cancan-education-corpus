@@ -1,0 +1,459 @@
+# 确保在正确的目录
+cd ~/feedlearn_webapp
+
+# 直接用正确的文件替换
+cat > app.py << 'ENDOFFILE'
+from flask import Flask, render_template, request, jsonify
+from werkzeug.utils import secure_filename
+import os
+import json
+from datetime import datetime
+import PyPDF2
+import docx
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+import ollama
+from langdetect import detect
+import re
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'docx', 'txt'}
+
+print("🚀 正在启动灿灿AI助手...")
+embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+print("✅ 灿灿已就绪！")
+
+knowledge_base = {
+    'documents': [],
+    'embeddings': None,
+    'index': None,
+    'metadata': []
+}
+
+ASEAN_LANGUAGES = {
+    'zh': '中文 (Chinese)',
+    'en': 'English (英语)',
+    'vi': 'Tiếng Việt (越南语)',
+    'th': 'ภาษาไทย (泰语)',
+    'id': 'Bahasa Indonesia (印尼语)',
+    'ms': 'Bahasa Melayu (马来语)',
+    'fil': 'Filipino (菲律宾语)',
+    'my': 'မြန်မာဘာသာ (缅甸语)',
+    'lo': 'ລາວ (老挝语)',
+    'km': 'ខ្មែរ (高棉语/柬埔寨语)'
+}
+
+RESPONSE_STYLES = {
+    'professional': {
+        'name': '专业学术',
+        'prompt': '请以严谨的学术语言回答，引用专业术语，提供详细的理论依据。'
+    },
+    'simple': {
+        'name': '通俗易懂',
+        'prompt': '请用简单易懂的语言解释，就像在给初学者讲解一样，多用比喻和例子。'
+    },
+    'inspiring': {
+        'name': '启发式',
+        'prompt': '请以启发式的方式回答，引导思考，提出相关问题，激发深层理解。'
+    },
+    'concise': {
+        'name': '简明扼要',
+        'prompt': '请简洁明了地回答，突出重点，不超过3-5句话。'
+    },
+    'detailed': {
+        'name': '详细深入',
+        'prompt': '请提供详尽的分析，包括背景、原理、应用、案例等多个维度。'
+    }
+}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+def extract_text_from_pdf(file_path):
+    text = ""
+    try:
+        with open(file_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
+    except Exception as e:
+        print(f"PDF读取错误: {e}")
+    return text
+
+def extract_text_from_docx(file_path):
+    text = ""
+    try:
+        doc = docx.Document(file_path)
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+    except Exception as e:
+        print(f"Word文档读取错误: {e}")
+    return text
+
+def extract_text_from_txt(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
+    except:
+        with open(file_path, 'r', encoding='gbk') as file:
+            return file.read()
+
+def split_text_into_chunks(text, chunk_size=500):
+    words = text.split()
+    chunks = []
+    current_chunk = []
+    current_length = 0
+    
+    for word in words:
+        current_chunk.append(word)
+        current_length += 1
+        
+        if current_length >= chunk_size:
+            chunks.append(' '.join(current_chunk))
+            current_chunk = []
+            current_length = 0
+    
+    if current_chunk:
+        chunks.append(' '.join(current_chunk))
+    
+    return chunks
+
+def extract_keywords(text):
+    words = text.split()
+    return list(set([w for w in words if len(w) > 3]))[:10]
+
+def assess_difficulty(text):
+    avg_word_length = np.mean([len(w) for w in text.split()])
+    if avg_word_length < 5:
+        return "初级"
+    elif avg_word_length < 7:
+        return "中级"
+    else:
+        return "高级"
+
+def build_knowledge_index():
+    if not knowledge_base['documents']:
+        return
+    
+    print("🔨 灿灿正在构建知识索引...")
+    texts = [doc['text'] for doc in knowledge_base['documents']]
+    embeddings = embedding_model.encode(texts)
+    
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings.astype('float32'))
+    
+    knowledge_base['embeddings'] = embeddings
+    knowledge_base['index'] = index
+    print(f"✨ 知识库构建完成！共 {len(texts)} 个知识片段")
+
+def search_knowledge_base(query, top_k=3):
+    if knowledge_base['index'] is None:
+        return []
+    
+    query_embedding = embedding_model.encode([query])
+    distances, indices = knowledge_base['index'].search(query_embedding.astype('float32'), top_k)
+    
+    results = []
+    for idx, distance in zip(indices[0], distances[0]):
+        if idx < len(knowledge_base['documents']):
+            results.append({
+                'text': knowledge_base['documents'][idx]['text'],
+                'source': knowledge_base['documents'][idx]['source'],
+                'score': float(distance),
+                'keywords': knowledge_base['documents'][idx].get('keywords', [])
+            })
+    
+    return results
+
+def generate_answer_with_cancan(query, context, style='professional', language='zh'):
+    try:
+        style_prompt = RESPONSE_STYLES.get(style, RESPONSE_STYLES['professional'])['prompt']
+        
+        language_instruction = ""
+        if language != 'zh':
+            lang_name = ASEAN_LANGUAGES.get(language, 'English')
+            language_instruction = f"\n\n重要：请用{lang_name}回答。"
+        
+        prompt = f"""你是"灿灿"，一个专为东盟教育场景设计的智能AI助手。
+
+回答风格要求：{style_prompt}
+{language_instruction}
+
+参考资料：
+{context}
+
+用户问题：{query}
+
+请根据参考资料回答问题。如果参考资料中没有相关信息，请诚实地说明。"""
+
+        response = ollama.chat(model='qwen2.5:7b', messages=[
+            {'role': 'system', 'content': '你是灿灿，一个友好、专业的AI教育助手。'},
+            {'role': 'user', 'content': prompt}
+        ])
+        
+        return response['message']['content']
+    except Exception as e:
+        return f"灿灿遇到了一些问题：{str(e)}"
+
+def generate_quiz(text, num_questions=5):
+    try:
+        prompt = f"""基于以下教育内容，生成{num_questions}道高质量的选择题。
+
+内容：
+{text[:1000]}
+
+要求：
+1. 每道题包含题目、4个选项（A/B/C/D）和正确答案
+2. 题目难度适中，考察核心知识点
+3. 选项设置合理，避免明显错误答案
+
+请按以下格式输出：
+【题目1】题目内容
+A. 选项A
+B. 选项B
+C. 选项C
+D. 选项D
+正确答案：X
+解析：...
+"""
+        response = ollama.chat(model='qwen2.5:7b', messages=[
+            {'role': 'user', 'content': prompt}
+        ])
+        
+        return response['message']['content']
+    except Exception as e:
+        return f"出题失败：{str(e)}"
+
+def generate_outline(text):
+    try:
+        prompt = f"""请基于以下内容生成一份结构化的教学大纲。
+
+内容：
+{text[:1500]}
+
+要求：
+1. 提取主要章节和知识点
+2. 设计教学目标
+3. 建议教学时长和重点难点
+4. 格式清晰，层次分明"""
+
+        response = ollama.chat(model='qwen2.5:7b', messages=[
+            {'role': 'user', 'content': prompt}
+        ])
+        
+        return response['message']['content']
+    except Exception as e:
+        return f"大纲生成失败：{str(e)}"
+
+def generate_learning_path(text):
+    try:
+        prompt = f"""基于以下教育内容，设计一个循序渐进的学习路径。
+
+内容：
+{text[:1000]}
+
+要求：
+1. 分为初级、中级、高级三个阶段
+2. 每个阶段明确学习目标和建议时长
+3. 提供学习建议和练习方向"""
+
+        response = ollama.chat(model='qwen2.5:7b', messages=[
+            {'role': 'user', 'content': prompt}
+        ])
+        
+        return response['message']['content']
+    except Exception as e:
+        return f"路径规划失败：{str(e)}"
+
+def translate_text(text, target_language):
+    try:
+        lang_name = ASEAN_LANGUAGES.get(target_language, 'English')
+        prompt = f"请将以下内容翻译成{lang_name}，保持专业性和准确性：\n\n{text}"
+        
+        response = ollama.chat(model='qwen2.5:7b', messages=[
+            {'role': 'user', 'content': prompt}
+        ])
+        
+        return response['message']['content']
+    except Exception as e:
+        return f"翻译失败：{str(e)}"
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': '没有文件被上传'})
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'message': '没有选择文件'})
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{timestamp}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        ext = filename.rsplit('.', 1)[1].lower()
+        if ext == 'pdf':
+            text = extract_text_from_pdf(filepath)
+        elif ext == 'docx':
+            text = extract_text_from_docx(filepath)
+        else:
+            text = extract_text_from_txt(filepath)
+        
+        if not text.strip():
+            return jsonify({'success': False, 'message': '无法从文件中提取文本内容'})
+        
+        chunks = split_text_into_chunks(text)
+        keywords = extract_keywords(text)
+        difficulty = assess_difficulty(text)
+        
+        for chunk in chunks:
+            knowledge_base['documents'].append({
+                'text': chunk,
+                'source': filename,
+                'upload_time': timestamp,
+                'keywords': keywords,
+                'difficulty': difficulty
+            })
+        
+        build_knowledge_index()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'文件上传成功！已添加 {len(chunks)} 个知识片段',
+            'filename': filename,
+            'chunks': len(chunks),
+            'difficulty': difficulty,
+            'keywords': keywords[:5]
+        })
+    
+    return jsonify({'success': False, 'message': '不支持的文件格式'})
+
+@app.route('/ask', methods=['POST'])
+def ask_question():
+    data = request.json
+    question = data.get('question', '')
+    style = data.get('style', 'professional')
+    language = data.get('language', 'zh')
+    
+    if not question:
+        return jsonify({'success': False, 'message': '问题不能为空'})
+    
+    if not knowledge_base['documents']:
+        return jsonify({'success': False, 'message': '知识库为空，请先上传文档'})
+    
+    relevant_docs = search_knowledge_base(question, top_k=3)
+    context = "\n\n".join([doc['text'] for doc in relevant_docs])
+    answer = generate_answer_with_cancan(question, context, style, language)
+    
+    return jsonify({
+        'success': True,
+        'answer': answer,
+        'sources': [{'source': doc['source'], 'score': doc['score']} for doc in relevant_docs]
+    })
+
+@app.route('/generate_quiz', methods=['POST'])
+def quiz():
+    data = request.json
+    num_questions = data.get('num_questions', 5)
+    
+    if not knowledge_base['documents']:
+        return jsonify({'success': False, 'message': '知识库为空'})
+    
+    text = "\n".join([doc['text'] for doc in knowledge_base['documents'][:3]])
+    quiz_content = generate_quiz(text, num_questions)
+    
+    return jsonify({'success': True, 'quiz': quiz_content})
+
+@app.route('/generate_outline', methods=['POST'])
+def outline():
+    if not knowledge_base['documents']:
+        return jsonify({'success': False, 'message': '知识库为空'})
+    
+    text = "\n".join([doc['text'] for doc in knowledge_base['documents'][:5]])
+    outline_content = generate_outline(text)
+    
+    return jsonify({'success': True, 'outline': outline_content})
+
+@app.route('/generate_path', methods=['POST'])
+def learning_path():
+    if not knowledge_base['documents']:
+        return jsonify({'success': False, 'message': '知识库为空'})
+    
+    text = "\n".join([doc['text'] for doc in knowledge_base['documents'][:3]])
+    path_content = generate_learning_path(text)
+    
+    return jsonify({'success': True, 'path': path_content})
+
+@app.route('/translate', methods=['POST'])
+def translate():
+    data = request.json
+    text = data.get('text', '')
+    target_language = data.get('language', 'en')
+    
+    if not text:
+        return jsonify({'success': False, 'message': '没有要翻译的内容'})
+    
+    translated = translate_text(text, target_language)
+    return jsonify({'success': True, 'translated': translated})
+
+@app.route('/extract_keywords', methods=['POST'])
+def keywords():
+    if not knowledge_base['documents']:
+        return jsonify({'success': False, 'message': '知识库为空'})
+    
+    all_keywords = []
+    for doc in knowledge_base['documents']:
+        all_keywords.extend(doc.get('keywords', []))
+    
+    keyword_freq = {}
+    for kw in all_keywords:
+        keyword_freq[kw] = keyword_freq.get(kw, 0) + 1
+    
+    sorted_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)[:20]
+    
+    return jsonify({
+        'success': True, 
+        'keywords': [{'word': k, 'freq': v} for k, v in sorted_keywords]
+    })
+
+@app.route('/stats')
+def get_stats():
+    difficulty_stats = {}
+    for doc in knowledge_base['documents']:
+        diff = doc.get('difficulty', '未知')
+        difficulty_stats[diff] = difficulty_stats.get(diff, 0) + 1
+    
+    return jsonify({
+        'total_documents': len(knowledge_base['documents']),
+        'total_files': len(set([doc['source'] for doc in knowledge_base['documents']])),
+        'difficulty_distribution': difficulty_stats
+    })
+
+@app.route('/languages')
+def get_languages():
+    return jsonify({'languages': ASEAN_LANGUAGES})
+
+@app.route('/styles')
+def get_styles():
+    return jsonify({'styles': {k: v['name'] for k, v in RESPONSE_STYLES.items()}})
+
+if __name__ == '__main__':
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    print("\n" + "="*70)
+    print("✨ 灿灿AI助手 - FeedLearn 2.0 智能教育知识库")
+    print("🌏 支持东盟10国语言 | 🎨 克莱因蓝主题")
+    print("="*70 + "\n")
+    app.run(debug=True, host='0.0.0.0', port=5001)
+ENDOFFILE

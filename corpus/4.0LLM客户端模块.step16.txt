@@ -1,0 +1,225 @@
+cat > modules/llm_client.py << 'EOF'
+"""
+============================================
+大语言模型客户端
+支持多种LLM API调用
+============================================
+"""
+
+import os
+import logging
+from typing import Optional, Dict
+import json
+
+# OpenAI
+try:
+    import openai
+except ImportError:
+    openai = None
+
+# 本地模型（可选）
+try:
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+except ImportError:
+    AutoTokenizer = None
+    AutoModelForCausalLM = None
+
+logger = logging.getLogger(__name__)
+
+
+class LLMClient:
+    """大语言模型客户端"""
+    
+    def __init__(self, model_type: str = "openai", api_key: Optional[str] = None):
+        """
+        初始化LLM客户端
+        
+        Args:
+            model_type: 模型类型 (openai, local, mock)
+            api_key: API密钥
+        """
+        self.model_type = model_type
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        
+        if model_type == "openai":
+            self._init_openai()
+        elif model_type == "local":
+            self._init_local_model()
+        else:
+            # Mock模式用于测试
+            logger.info("使用Mock模式")
+    
+    def _init_openai(self):
+        """初始化OpenAI"""
+        if not openai:
+            raise ImportError("需要安装 openai: pip install openai")
+        
+        if not self.api_key:
+            logger.warning("未设置OpenAI API Key，将使用Mock模式")
+            self.model_type = "mock"
+            return
+        
+        openai.api_key = self.api_key
+        self.model_name = "gpt-3.5-turbo"
+        logger.info("OpenAI客户端初始化成功")
+    
+    def _init_local_model(self):
+        """初始化本地模型"""
+        if not AutoTokenizer or not AutoModelForCausalLM:
+            raise ImportError("需要安装 transformers")
+        
+        # 使用中文模型（示例）
+        model_name = "THUDM/chatglm2-6b"
+        
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True
+            ).half().cuda()
+            logger.info(f"本地模型加载成功: {model_name}")
+        except Exception as e:
+            logger.error(f"本地模型加载失败: {e}")
+            self.model_type = "mock"
+    
+    def generate_answer(self, question: str, context: str, 
+                       language: str = "zh-CN", style: str = "professional",
+                       difficulty: str = "medium") -> str:
+        """
+        生成回答
+        
+        Args:
+            question: 问题
+            context: 上下文
+            language: 语言
+            style: 风格
+            difficulty: 难度
+            
+        Returns:
+            生成的回答
+        """
+        # 构建提示词
+        prompt = self._build_qa_prompt(question, context, language, style, difficulty)
+        
+        if self.model_type == "openai":
+            return self._generate_openai(prompt)
+        elif self.model_type == "local":
+            return self._generate_local(prompt)
+        else:
+            return self._generate_mock(question, context)
+    
+    def _build_qa_prompt(self, question: str, context: str, 
+                        language: str, style: str, difficulty: str) -> str:
+        """构建问答提示词"""
+        style_map = {
+            "professional": "专业、准确",
+            "casual": "轻松、易懂",
+            "detailed": "详细、全面"
+        }
+        
+        difficulty_map = {
+            "easy": "简单易懂，适合初学者",
+            "medium": "适中难度，平衡深度和可读性",
+            "hard": "深入专业，包含技术细节"
+        }
+        
+        prompt = f"""你是一个智能助手，请根据以下内容回答问题。
+
+回答要求：
+- 风格：{style_map.get(style, '专业')}
+- 难度：{difficulty_map.get(difficulty, '适中')}
+- 语言：{'中文' if language == 'zh-CN' else '英文'}
+
+上下文：
+{context}
+
+问题：{question}
+
+请提供准确、有帮助的回答："""
+        
+        return prompt
+    
+    def _generate_openai(self, prompt: str) -> str:
+        """使用OpenAI生成"""
+        try:
+            response = openai.ChatCompletion.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "你是一个专业的文档问答助手。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            answer = response.choices[0].message.content.strip()
+            return answer
+            
+        except Exception as e:
+            logger.error(f"OpenAI生成失败: {e}")
+            return "抱歉，生成回答时出现错误。"
+    
+    def _generate_local(self, prompt: str) -> str:
+        """使用本地模型生成"""
+        try:
+            response, history = self.model.chat(
+                self.tokenizer,
+                prompt,
+                history=[]
+            )
+            return response
+        except Exception as e:
+            logger.error(f"本地模型生成失败: {e}")
+            return "抱歉，生成回答时出现错误。"
+    
+    def _generate_mock(self, question: str, context: str) -> str:
+        """Mock模式（用于测试）"""
+        return f"""基于文档内容，我为您找到了以下信息：
+
+{context[:200]}...
+
+针对您的问题"{question}"，这些内容提供了相关的参考信息。建议您仔细阅读文档以获得更详细的答案。
+
+（注：当前运行在演示模式，实际部署时将使用AI模型生成更智能的回答）"""
+    
+    def evaluate_answer(self, question: str, user_answer: str, 
+                       reference_answer: str) -> bool:
+        """
+        评估简答题答案
+        
+        Args:
+            question: 问题
+            user_answer: 用户答案
+            reference_answer: 参考答案
+            
+        Returns:
+            是否正确
+        """
+        if self.model_type == "mock":
+            # 简单的相似度判断
+            return self._simple_similarity(user_answer, reference_answer) > 0.5
+        
+        prompt = f"""请评估以下答案是否正确：
+
+问题：{question}
+参考答案：{reference_answer}
+学生答案：{user_answer}
+
+请只回答"正确"或"错误"："""
+        
+        result = self.generate_answer(prompt, "", "zh-CN", "professional", "medium")
+        return "正确" in result
+    
+    def _simple_similarity(self, text1: str, text2: str) -> float:
+        """简单的文本相似度（用于Mock模式）"""
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        
+        if not words1 or not words2:
+            return 0.0
+        
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+        
+        return intersection / union if union > 0 else 0.0
+EOF

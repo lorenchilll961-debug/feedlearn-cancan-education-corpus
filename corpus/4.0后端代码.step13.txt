@@ -1,0 +1,747 @@
+cat > app.py << 'EOF'
+"""
+============================================
+灿灿AI - 主应用文件
+智能文档问答系统后端
+============================================
+"""
+
+from flask import Flask, render_template, request, jsonify, send_file, session
+from flask_cors import CORS
+from werkzeug.utils import secure_filename
+import os
+import json
+import uuid
+from datetime import datetime
+import logging
+
+# 导入自定义模块
+from modules.document_processor import DocumentProcessor
+from modules.vector_store import VectorStore
+from modules.llm_client import LLMClient
+from modules.knowledge_graph import KnowledgeGraphBuilder
+from modules.question_generator import QuestionGenerator
+from modules.learning_path import LearningPathGenerator
+from modules.summarizer import DocumentSummarizer
+
+# ============================================
+# 应用配置
+# ============================================
+
+app = Flask(__name__)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'development-only-change-me')
+CORS(app)
+
+# 配置
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'docx', 'txt', 'doc'}
+app.config['VECTOR_DB_PATH'] = 'data/chroma_db'
+app.config['DOCUMENTS_DB'] = 'data/documents.json'
+
+# 创建必要的目录
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs('data', exist_ok=True)
+os.makedirs('logs', exist_ok=True)
+
+# 日志配置
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/app.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# ============================================
+# 初始化核心组件
+# ============================================
+
+doc_processor = DocumentProcessor()
+vector_store = VectorStore(persist_directory=app.config['VECTOR_DB_PATH'])
+llm_client = LLMClient()
+kg_builder = KnowledgeGraphBuilder()
+question_gen = QuestionGenerator(llm_client)
+learning_path_gen = LearningPathGenerator(llm_client)
+summarizer = DocumentSummarizer(llm_client)
+
+# ============================================
+# 工具函数
+# ============================================
+
+def allowed_file(filename):
+    """检查文件扩展名是否允许"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+def load_documents_db():
+    """加载文档数据库"""
+    try:
+        if os.path.exists(app.config['DOCUMENTS_DB']):
+            with open(app.config['DOCUMENTS_DB'], 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"加载文档数据库失败: {e}")
+    return []
+
+def save_documents_db(documents):
+    """保存文档数据库"""
+    try:
+        with open(app.config['DOCUMENTS_DB'], 'w', encoding='utf-8') as f:
+            json.dump(documents, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"保存文档数据库失败: {e}")
+        return False
+
+def get_document_stats():
+    """获取文档统计信息"""
+    documents = load_documents_db()
+    return {
+        'total': len(documents),
+        'pdf': len([d for d in documents if d.get('filename', '').endswith('.pdf')]),
+        'docx': len([d for d in documents if d.get('filename', '').endswith('.docx')]),
+        'txt': len([d for d in documents if d.get('filename', '').endswith('.txt')]),
+        'total_chunks': sum(d.get('chunks', 0) for d in documents)
+    }
+
+# ============================================
+# 路由 - 页面
+# ============================================
+
+@app.route('/')
+def index():
+    """主页 - 聊天界面"""
+    return render_template('index.html')
+
+@app.route('/knowledge_graph')
+def knowledge_graph():
+    """知识图谱页面"""
+    return render_template('knowledge_graph.html')
+
+@app.route('/learning_center')
+def learning_center():
+    """学习中心页面"""
+    return render_template('learning_center.html')
+
+@app.route('/resources')
+def resources():
+    """资源库页面"""
+    return render_template('resources.html')
+
+# ============================================
+# 路由 - 文件上传与管理
+# ============================================
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    """上传文件"""
+    try:
+        if 'files' not in request.files:
+            return jsonify({'status': 'error', 'message': '没有文件'}), 400
+        
+        files = request.files.getlist('files')
+        if not files:
+            return jsonify({'status': 'error', 'message': '没有选择文件'}), 400
+        
+        uploaded_files = []
+        total_chunks = 0
+        
+        for file in files:
+            if file and allowed_file(file.filename):
+                # 保存文件
+                filename = secure_filename(file.filename)
+                file_id = str(uuid.uuid4())
+                file_ext = filename.rsplit('.', 1)[1].lower()
+                saved_filename = f"{file_id}.{file_ext}"
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], saved_filename)
+                file.save(filepath)
+                
+                logger.info(f"文件已保存: {filename} -> {saved_filename}")
+                
+                # 处理文档
+                try:
+                    text_content = doc_processor.extract_text(filepath, file_ext)
+                    
+                    if not text_content.strip():
+                        logger.warning(f"文件内容为空: {filename}")
+                        os.remove(filepath)
+                        continue
+                    
+                    # 分块
+                    chunks = doc_processor.chunk_text(text_content)
+                    
+                    # 生成摘要
+                    summary = summarizer.generate_summary(text_content[:2000])
+                    
+                    # 提取关键词
+                    keywords = doc_processor.extract_keywords(text_content)
+                    
+                    # 添加到向量数据库
+                    metadatas = [{
+                        'source': filename,
+                        'file_id': file_id,
+                        'chunk_index': i,
+                        'timestamp': datetime.now().isoformat()
+                    } for i in range(len(chunks))]
+                    
+                    vector_store.add_texts(chunks, metadatas)
+                    
+                    # 保存文档信息
+                    doc_info = {
+                        'id': file_id,
+                        'filename': filename,
+                        'filepath': filepath,
+                        'size': os.path.getsize(filepath),
+                        'chunks': len(chunks),
+                        'summary': summary,
+                        'keywords': keywords,
+                        'uploaded': datetime.now().isoformat(),
+                        'type': file_ext
+                    }
+                    
+                    documents = load_documents_db()
+                    documents.append(doc_info)
+                    save_documents_db(documents)
+                    
+                    uploaded_files.append(doc_info)
+                    total_chunks += len(chunks)
+                    
+                    logger.info(f"文档处理成功: {filename}, 生成 {len(chunks)} 个chunks")
+                    
+                except Exception as e:
+                    logger.error(f"处理文档失败 {filename}: {e}")
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                    continue
+        
+        if not uploaded_files:
+            return jsonify({
+                'status': 'error',
+                'message': '没有成功上传的文件'
+            }), 400
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'成功上传 {len(uploaded_files)} 个文件',
+            'files': uploaded_files,
+            'chunks': total_chunks
+        })
+        
+    except Exception as e:
+        logger.error(f"上传失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'上传失败: {str(e)}'
+        }), 500
+
+@app.route('/get_documents', methods=['GET'])
+def get_documents():
+    """获取所有文档"""
+    try:
+        documents = load_documents_db()
+        stats = get_document_stats()
+        
+        # 提取所有关键词
+        all_keywords = []
+        for doc in documents:
+            if 'keywords' in doc:
+                all_keywords.extend(doc['keywords'])
+        
+        # 统计关键词频率
+        keyword_freq = {}
+        for kw in all_keywords:
+            keyword_freq[kw] = keyword_freq.get(kw, 0) + 1
+        
+        keywords = [{'word': k, 'weight': v} for k, v in keyword_freq.items()]
+        
+        return jsonify({
+            'status': 'success',
+            'documents': documents,
+            'stats': stats,
+            'keywords': keywords
+        })
+    except Exception as e:
+        logger.error(f"获取文档失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/delete_document/<doc_id>', methods=['DELETE'])
+def delete_document(doc_id):
+    """删除文档"""
+    try:
+        documents = load_documents_db()
+        doc = next((d for d in documents if d['id'] == doc_id), None)
+        
+        if not doc:
+            return jsonify({
+                'status': 'error',
+                'message': '文档不存在'
+            }), 404
+        
+        # 删除文件
+        if os.path.exists(doc['filepath']):
+            os.remove(doc['filepath'])
+        
+        # 从向量数据库删除（简化版，实际需要更复杂的逻辑）
+        # vector_store.delete_by_metadata({'file_id': doc_id})
+        
+        # 从数据库删除
+        documents = [d for d in documents if d['id'] != doc_id]
+        save_documents_db(documents)
+        
+        logger.info(f"文档已删除: {doc['filename']}")
+        
+        return jsonify({
+            'status': 'success',
+            'message': '删除成功'
+        })
+        
+    except Exception as e:
+        logger.error(f"删除文档失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/clear_all_documents', methods=['DELETE'])
+def clear_all_documents():
+    """清空所有文档"""
+    try:
+        documents = load_documents_db()
+        
+        # 删除所有文件
+        for doc in documents:
+            if os.path.exists(doc['filepath']):
+                os.remove(doc['filepath'])
+        
+        # 清空数据库
+        save_documents_db([])
+        
+        # 重置向量数据库
+        vector_store.reset()
+        
+        logger.info("所有文档已清空")
+        
+        return jsonify({
+            'status': 'success',
+            'message': '已清空所有文档'
+        })
+        
+    except Exception as e:
+        logger.error(f"清空文档失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/download/<doc_id>', methods=['GET'])
+def download_document(doc_id):
+    """下载文档"""
+    try:
+        documents = load_documents_db()
+        doc = next((d for d in documents if d['id'] == doc_id), None)
+        
+        if not doc or not os.path.exists(doc['filepath']):
+            return jsonify({
+                'status': 'error',
+                'message': '文档不存在'
+            }), 404
+        
+        return send_file(
+            doc['filepath'],
+            as_attachment=True,
+            download_name=doc['filename']
+        )
+        
+    except Exception as e:
+        logger.error(f"下载文档失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# ============================================
+# 路由 - 聊天与问答
+# ============================================
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    """聊天接口"""
+    try:
+        data = request.get_json()
+        question = data.get('question', '').strip()
+        language = data.get('language', 'zh-CN')
+        style = data.get('style', 'professional')
+        difficulty = data.get('difficulty', 'medium')
+        
+        if not question:
+            return jsonify({
+                'status': 'error',
+                'message': '问题不能为空'
+            }), 400
+        
+        logger.info(f"收到问题: {question}")
+        
+        # 检索相关文档
+        results = vector_store.similarity_search(question, k=3)
+        
+        if not results:
+            return jsonify({
+                'status': 'success',
+                'answer': '抱歉，我在已上传的文档中没有找到相关信息。请确保已上传相关文档。',
+                'sources': []
+            })
+        
+        # 构建上下文
+        context = "\n\n".join([doc['content'] for doc in results])
+        sources = [{'source': doc['metadata'].get('source', ''), 
+                   'chunk': doc['metadata'].get('chunk_index', 0)} 
+                  for doc in results]
+        
+        # 生成回答
+        answer = llm_client.generate_answer(
+            question=question,
+            context=context,
+            language=language,
+            style=style,
+            difficulty=difficulty
+        )
+        
+        logger.info(f"生成答案完成")
+        
+        return jsonify({
+            'status': 'success',
+            'answer': answer,
+            'sources': sources
+        })
+        
+    except Exception as e:
+        logger.error(f"聊天失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'处理失败: {str(e)}'
+        }), 500
+
+# ============================================
+# 路由 - 知识图谱
+# ============================================
+
+@app.route('/build_knowledge_graph', methods=['POST'])
+def build_knowledge_graph():
+    """构建知识图谱"""
+    try:
+        documents = load_documents_db()
+        
+        if not documents:
+            return jsonify({
+                'status': 'error',
+                'message': '没有可用的文档'
+            }), 400
+        
+        # 收集所有文本
+        all_texts = []
+        for doc in documents:
+            try:
+                text = doc_processor.extract_text(doc['filepath'], doc['type'])
+                all_texts.append(text)
+            except Exception as e:
+                logger.error(f"读取文档失败 {doc['filename']}: {e}")
+        
+        if not all_texts:
+            return jsonify({
+                'status': 'error',
+                'message': '无法读取文档内容'
+            }), 400
+        
+        # 构建知识图谱
+        combined_text = "\n\n".join(all_texts)
+        graph = kg_builder.build_graph(combined_text)
+        
+        logger.info(f"知识图谱构建完成: {len(graph.get('nodes', []))} 个节点")
+        
+        return jsonify({
+            'status': 'success',
+            'graph': graph,
+            'message': '知识图谱构建成功'
+        })
+        
+    except Exception as e:
+        logger.error(f"构建知识图谱失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/get_knowledge_graph', methods=['GET'])
+def get_knowledge_graph():
+    """获取已构建的知识图谱"""
+    try:
+        # 从缓存或数据库读取
+        graph_file = 'data/knowledge_graph.json'
+        
+        if os.path.exists(graph_file):
+            with open(graph_file, 'r', encoding='utf-8') as f:
+                graph = json.load(f)
+            
+            return jsonify({
+                'status': 'success',
+                'graph': graph
+            })
+        else:
+            return jsonify({
+                'status': 'success',
+                'graph': None
+            })
+            
+    except Exception as e:
+        logger.error(f"获取知识图谱失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# ============================================
+# 路由 - 学习中心
+# ============================================
+
+@app.route('/generate_questions', methods=['POST'])
+def generate_questions():
+    """生成测试题目"""
+    try:
+        data = request.get_json()
+        count = int(data.get('count', 5))
+        difficulty = data.get('difficulty', 'medium')
+        question_type = data.get('type', 'mixed')
+        
+        documents = load_documents_db()
+        
+        if not documents:
+            return jsonify({
+                'status': 'error',
+                'message': '没有可用的文档'
+            }), 400
+        
+        # 获取文档内容
+        texts = []
+        for doc in documents[:3]:  # 限制使用前3个文档
+            try:
+                text = doc_processor.extract_text(doc['filepath'], doc['type'])
+                texts.append(text[:2000])  # 限制长度
+            except:
+                continue
+        
+        if not texts:
+            return jsonify({
+                'status': 'error',
+                'message': '无法读取文档内容'
+            }), 400
+        
+        # 生成题目
+        questions = question_gen.generate_questions(
+            content="\n\n".join(texts),
+            count=count,
+            difficulty=difficulty,
+            question_type=question_type
+        )
+        
+        logger.info(f"生成 {len(questions)} 道题目")
+        
+        return jsonify({
+            'status': 'success',
+            'questions': questions
+        })
+        
+    except Exception as e:
+        logger.error(f"生成题目失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/submit_answers', methods=['POST'])
+def submit_answers():
+    """提交答案并批改"""
+    try:
+        data = request.get_json()
+        questions = data.get('questions', [])
+        answers = data.get('answers', [])
+        
+        if len(questions) != len(answers):
+            return jsonify({
+                'status': 'error',
+                'message': '题目和答案数量不匹配'
+            }), 400
+        
+        results = []
+        
+        for i, (question, user_answer) in enumerate(zip(questions, answers)):
+            q_type = question.get('type', 'multiple_choice')
+            correct_answer = question.get('answer')
+            
+            is_correct = False
+            
+            if q_type == 'multiple_choice':
+                # 选择题
+                is_correct = str(user_answer) == str(correct_answer)
+            elif q_type == 'true_false':
+                # 判断题
+                is_correct = str(user_answer).lower() == str(correct_answer).lower()
+            else:
+                # 简答题 - 使用LLM评分
+                is_correct = llm_client.evaluate_answer(
+                    question=question['question'],
+                    user_answer=user_answer,
+                    reference_answer=correct_answer
+                )
+            
+            results.append({
+                'questionIndex': i,
+                'correct': is_correct,
+                'userAnswer': user_answer,
+                'correctAnswer': correct_answer,
+                'explanation': question.get('explanation', '')
+            })
+        
+        return jsonify({
+            'status': 'success',
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"批改答案失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/generate_learning_path', methods=['POST'])
+def generate_learning_path():
+    """生成学习路径"""
+    try:
+        documents = load_documents_db()
+        
+        if not documents:
+            return jsonify({
+                'status': 'error',
+                'message': '没有可用的文档'
+            }), 400
+        
+        # 获取文档内容
+        texts = []
+        for doc in documents:
+            try:
+                text = doc_processor.extract_text(doc['filepath'], doc['type'])
+                texts.append(text[:1000])
+            except:
+                continue
+        
+        # 生成学习路径
+        path = learning_path_gen.generate_path("\n\n".join(texts))
+        
+        logger.info(f"学习路径生成完成: {len(path.get('stages', []))} 个阶段")
+        
+        return jsonify({
+            'status': 'success',
+            'path': path
+        })
+        
+    except Exception as e:
+        logger.error(f"生成学习路径失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# ============================================
+# 路由 - 文档分析
+# ============================================
+
+@app.route('/analyze_document', methods=['POST'])
+def analyze_document():
+    """分析文档"""
+    try:
+        data = request.get_json()
+        doc_id = data.get('document_id')
+        
+        documents = load_documents_db()
+        doc = next((d for d in documents if d['id'] == doc_id), None)
+        
+        if not doc:
+            return jsonify({
+                'status': 'error',
+                'message': '文档不存在'
+            }), 404
+        
+        # 读取文档内容
+        text = doc_processor.extract_text(doc['filepath'], doc['type'])
+        
+        # 分析文档
+        analysis = {
+            'readability': doc_processor.calculate_readability(text),
+            'complexity': doc_processor.assess_complexity(text),
+            'topics': doc_processor.extract_topics(text),
+            'word_count': len(text.split()),
+            'sentence_count': len([s for s in text.split('.') if s.strip()])
+        }
+        
+        return jsonify({
+            'status': 'success',
+            'analysis': analysis
+        })
+        
+    except Exception as e:
+        logger.error(f"分析文档失败: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# ============================================
+# 错误处理
+# ============================================
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        'status': 'error',
+        'message': '页面不存在'
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({
+        'status': 'error',
+        'message': '服务器内部错误'
+    }), 500
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({
+        'status': 'error',
+        'message': '文件太大，最大支持16MB'
+    }), 413
+
+# ============================================
+# 启动应用
+# ============================================
+
+if __name__ == '__main__':
+    logger.info("=" * 50)
+    logger.info("灿灿AI 启动中...")
+    logger.info(f"上传目录: {app.config['UPLOAD_FOLDER']}")
+    logger.info(f"向量数据库: {app.config['VECTOR_DB_PATH']}")
+    logger.info("=" * 50)
+    
+    # 开发模式
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        debug=True,
+        threaded=True
+    )
+EOF

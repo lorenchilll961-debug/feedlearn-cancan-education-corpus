@@ -1,0 +1,7 @@
+# 确保所有文件都已创建
+ls -la templates/
+ls -la static/css/
+ls -la static/js/
+
+# 启动服务
+python app.py

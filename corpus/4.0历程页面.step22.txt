@@ -1,0 +1,261 @@
+cat > templates/milestones.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发展历程 - 灿灿AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">✨</span>
+                <span class="brand-name">灿灿AI</span>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/team" class="nav-link">👥 团队</a>
+                <a href="/milestones" class="nav-link active">📅 历程</a>
+                <a href="/news" class="nav-link">📰 动态</a>
+                <a href="/contact" class="nav-link">📞 联系</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <h1 style="font-size: 3em; margin-bottom: 20px;">📅 发展历程</h1>
+        <p style="font-size: 1.3em; opacity: 0.9;">记录我们的每一步成长</p>
+    </div>
+
+    <!-- Timeline Content -->
+    <div class="container">
+        <!-- Project Overview -->
+        <div class="card" style="margin-top: 40px;">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🎯</span>
+                    项目概况
+                </div>
+            </div>
+            <div style="line-height: 1.8; font-size: 1.1em;">
+                <p style="color: var(--text-primary);">
+                    灿灿AI是一个专注于教育领域的智能助手项目，致力于为东盟地区提供多语种、个性化的学习支持。
+                    我们采用先进的RAG（检索增强生成）技术，结合大语言模型，打造出高效、精准的智能教育平台。
+                </p>
+            </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">⏰</span>
+                    时间轴
+                </div>
+            </div>
+            
+            <!-- 2024年12月 -->
+            <div class="timeline-item">
+                <div class="timeline-marker">
+                    <div class="timeline-icon">🚀</div>
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-date">2024年12月</div>
+                    <div class="timeline-title">项目启动</div>
+                    <div class="timeline-desc">
+                        <ul style="line-height: 1.8;">
+                            <li>组建核心团队，明确项目目标</li>
+                            <li>完成技术选型和架构设计</li>
+                            <li>确定多语种支持方案</li>
+                            <li>搭建基础开发环境</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2025年1月 -->
+            <div class="timeline-item">
+                <div class="timeline-marker">
+                    <div class="timeline-icon">💻</div>
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-date">2025年1月</div>
+                    <div class="timeline-title">核心功能开发</div>
+                    <div class="timeline-desc">
+                        <ul style="line-height: 1.8;">
+                            <li>实现文档上传与处理功能</li>
+                            <li>开发智能问答系统</li>
+                            <li>集成向量数据库</li>
+                            <li>构建知识图谱模块</li>
+                            <li>完成题目生成器和学习路径生成器</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2025年2月 -->
+            <div class="timeline-item">
+                <div class="timeline-marker">
+                    <div class="timeline-icon">🔧</div>
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-date">2025年2月</div>
+                    <div class="timeline-title">测试与优化</div>
+                    <div class="timeline-desc">
+                        <ul style="line-height: 1.8;">
+                            <li>进行系统功能测试</li>
+                            <li>优化用户界面体验</li>
+                            <li>完善多语种翻译准确度</li>
+                            <li>收集测试反馈并改进</li>
+                            <li>准备项目展示材料</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2025年3月 -->
+            <div class="timeline-item">
+                <div class="timeline-marker">
+                    <div class="timeline-icon">🎉</div>
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-date">2025年3月</div>
+                    <div class="timeline-title">项目完成</div>
+                    <div class="timeline-desc">
+                        <ul style="line-height: 1.8;">
+                            <li>完成所有核心功能开发</li>
+                            <li>系统稳定性达到预期</li>
+                            <li>项目文档整理完毕</li>
+                            <li>准备项目演示和答辩</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 未来规划 -->
+            <div class="timeline-item">
+                <div class="timeline-marker">
+                    <div class="timeline-icon">🌟</div>
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-date">未来规划</div>
+                    <div class="timeline-title">持续发展</div>
+                    <div class="timeline-desc">
+                        <ul style="line-height: 1.8;">
+                            <li>扩展更多教育场景应用</li>
+                            <li>优化多语种翻译质量</li>
+                            <li>增加更多交互式学习功能</li>
+                            <li>探索AI技术在教育领域的更多可能</li>
+                            <li>持续收集用户反馈，改进产品体验</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Achievements -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🏆</span>
+                    关键成果
+                </div>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">📚</span>
+                    <div class="feature-btn-title">文档处理</div>
+                    <div class="feature-btn-desc">支持多种格式文档上传与智能解析</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">💬</span>
+                    <div class="feature-btn-title">智能问答</div>
+                    <div class="feature-btn-desc">基于RAG技术的精准问答系统</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🌐</span>
+                    <div class="feature-btn-title">多语种翻译</div>
+                    <div class="feature-btn-desc">支持东盟10国语言互译</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">📝</span>
+                    <div class="feature-btn-title">题目生成</div>
+                    <div class="feature-btn-desc">自动生成多样化测试题目</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🗺️</span>
+                    <div class="feature-btn-title">知识图谱</div>
+                    <div class="feature-btn-desc">可视化知识关系与脉络</div>
+                </div>
+                
+                <div class="feature-btn" style="cursor: default;">
+                    <span class="feature-btn-icon">🎓</span>
+                    <div class="feature-btn-title">学习路径</div>
+                    <div class="feature-btn-desc">个性化学习路径规划</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technology Stack -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-icon">🛠️</span>
+                    技术栈
+                </div>
+            </div>
+            <div style="line-height: 2; font-size: 1.05em;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-weight: 600; color: var(--klein-blue); margin-bottom: 10px;">前端技术</div>
+                        <div style="color: var(--text-secondary);">HTML5 / CSS3 / JavaScript</div>
+                    </div>
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-weight: 600; color: var(--klein-blue); margin-bottom: 10px;">后端框架</div>
+                        <div style="color: var(--text-secondary);">Python / Flask</div>
+                    </div>
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-weight: 600; color: var(--klein-blue); margin-bottom: 10px;">AI技术</div>
+                        <div style="color: var(--text-secondary);">RAG / LLM / NLP</div>
+                    </div>
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-weight: 600; color: var(--klein-blue); margin-bottom: 10px;">数据处理</div>
+                        <div style="color: var(--text-secondary);">Pandas / NumPy / Jieba</div>
+                    </div>
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-weight: 600; color: var(--klein-blue); margin-bottom: 10px;">向量数据库</div>
+                        <div style="color: var(--text-secondary);">Chroma / FAISS</div>
+                    </div>
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-weight: 600; color: var(--klein-blue); margin-bottom: 10px;">可视化</div>
+                        <div style="color: var(--text-secondary);">D3.js / Chart.js</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Call to Action -->
+        <div class="card" style="background: linear-gradient(135deg, var(--klein-blue), var(--klein-blue-light)); color: white; text-align: center; padding: 60px 40px;">
+            <h2 style="font-size: 2.5em; margin-bottom: 20px;">体验我们的产品</h2>
+            <p style="font-size: 1.2em; margin-bottom: 40px; opacity: 0.9;">
+                探索AI教育的无限可能
+            </p>
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <a href="/" class="btn-hero btn-primary">🚀 立即体验</a>
+                <a href="/contact" class="btn-hero btn-secondary">📞 联系我们</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+ENDOFFILE
